@@ -1,0 +1,1677 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Helix Benefit Solutions Onboarding – Benefit Plan &amp; Rate Setup</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --primary:#2557b7;--primary-dark:#1a3f8a;--primary-light:#dce9fb;
+  --navy:#0d1b4b;--border:#d1d9e6;--text:#1e2a3a;--muted:#6b7c93;
+  --success:#16a34a;--warn:#f59e0b;--error:#dc2626;
+  --bg:#f0f4fa;--white:#fff;--sec:#eef3fb;--composite:#fde9d4;--member:#d9f0dc;
+}
+body{font-family:'Segoe UI',Arial,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+.hdr{background:linear-gradient(135deg,var(--navy) 0%,var(--primary-dark) 55%,var(--primary) 100%);
+  color:#fff;padding:10px 30px;display:flex;align-items:center;gap:18px;
+  box-shadow:0 3px 12px rgba(0,0,0,.25);position:sticky;top:0;z-index:50}
+.hdr-logo{height:44px;width:auto;object-fit:contain}
+.hdr-divider{width:1px;height:36px;background:rgba(255,255,255,.25);flex-shrink:0}
+.hdr-text{display:flex;flex-direction:column;gap:1px}
+.hdr-text h1{font-size:.95rem;font-weight:600;letter-spacing:.01em}
+.hdr-text span{font-size:.73rem;opacity:.68}
+.hdr .spacer{flex:1}
+.hdr .actions{display:flex;gap:8px}
+.main{max-width:1040px;margin:28px auto;padding:0 16px 120px}
+.intro{background:#fff;border-radius:12px;padding:20px 26px;margin-bottom:20px;
+  box-shadow:0 2px 14px rgba(0,0,0,.07);display:flex;align-items:center;gap:24px}
+.intro-logo{height:52px;width:auto;object-fit:contain;flex-shrink:0}
+.intro-divider{width:1px;height:48px;background:var(--border);flex-shrink:0}
+.intro-body h2{font-size:1rem;color:var(--primary-dark);margin-bottom:4px;font-weight:700}
+.intro-body p{font-size:.84rem;color:var(--muted);line-height:1.5}
+.card{background:#fff;border-radius:12px;box-shadow:0 2px 14px rgba(0,0,0,.07);
+  overflow:hidden;margin-bottom:18px}
+.ch{background:linear-gradient(90deg,var(--primary-dark),var(--primary));color:#fff;
+  padding:14px 22px;display:flex;align-items:center;gap:12px;cursor:pointer;user-select:none}
+.ch h3{font-size:1rem;font-weight:600;flex:1}
+.ch .badge{background:rgba(255,255,255,.22);padding:3px 10px;border-radius:12px;font-size:.72rem}
+.ch .tog{font-size:1.1rem;transition:transform .18s}
+.card.collapsed .ch .tog{transform:rotate(-90deg)}
+.card.collapsed .cb{display:none}
+.cb{padding:22px 26px}
+.slbl{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;
+  color:var(--primary);background:var(--sec);border-left:3px solid var(--primary);
+  padding:7px 12px;border-radius:4px;margin-bottom:12px;margin-top:20px}
+.slbl:first-child{margin-top:0}
+.fr{display:grid;gap:14px;margin-bottom:10px}
+.c1{grid-template-columns:1fr}.c2{grid-template-columns:1fr 1fr}.c3{grid-template-columns:1fr 1fr 1fr}
+.f{display:flex;flex-direction:column;gap:4px}
+.f label{font-size:.82rem;font-weight:600}
+.f label .req{color:var(--error)}
+.hint{font-size:.73rem;color:var(--muted);margin-top:1px;line-height:1.35}
+.f input:not([type=radio]):not([type=checkbox]),.f select,.f textarea{
+  border:1.5px solid var(--border);border-radius:6px;padding:8px 10px;
+  font-size:.88rem;font-family:inherit;color:var(--text);background:#fff;
+  transition:border-color .15s;width:100%}
+.f input:not([type=radio]):not([type=checkbox]):focus,.f select:focus,.f textarea:focus{
+  outline:none;border-color:var(--primary);box-shadow:0 0 0 3px rgba(37,87,183,.1)}
+.f input.err,.f select.err{border-color:var(--error)}
+.rg{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+.rg.col{flex-direction:column}
+.rg.col .ro{flex:1 1 100%}
+.ro{display:flex;align-items:flex-start;gap:6px;font-size:.8rem;cursor:pointer;line-height:1.35;
+  padding:5px 9px;border:1.25px solid var(--border);border-radius:5px;transition:all .15s;
+  flex:0 1 auto;min-width:0}
+.ro:hover{border-color:var(--primary);background:var(--sec)}
+.ro input[type=radio],.ro input[type=checkbox]{margin-top:2px;flex-shrink:0;accent-color:var(--primary);
+  width:13px;height:13px}
+.ro .rolbl{flex:1;min-width:0;display:block;overflow-wrap:break-word;word-break:break-word}
+.ro .rolbl b{color:var(--text);font-weight:600;display:block;font-size:.82rem}
+.ro.sel{border-color:var(--primary);background:var(--primary-light)}
+.ro.sel .rolbl b{color:var(--primary)}
+.ro.wide{flex:1 1 240px;max-width:calc(50% - 3px)}
+.odesc{font-size:.7rem;color:var(--muted);margin-top:1px;line-height:1.3}
+.sub{display:none;margin-top:10px;padding-left:10px;border-left:2px solid var(--primary-light)}
+.sub.vis{display:block}
+.tw{overflow-x:auto;margin-bottom:8px;border-radius:8px;border:1.5px solid var(--border)}
+.dt{width:100%;border-collapse:collapse;font-size:.86rem}
+.dt th{font-weight:700;font-size:.71rem;text-transform:uppercase;letter-spacing:.06em;
+  padding:9px 11px;text-align:left;border-bottom:2px solid var(--border)}
+.dt.composite th{background:var(--composite);color:#7c4a14}
+.dt.member th{background:var(--member);color:#14532d}
+.dt td{padding:6px 8px;border-bottom:1px solid var(--border);vertical-align:middle}
+.dt tr:last-child td{border-bottom:none}
+.dt input,.dt select{width:100%;border:1px solid var(--border);border-radius:5px;
+  padding:6px 8px;font-size:.84rem;font-family:inherit}
+.dt input:focus,.dt select:focus{outline:none;border-color:var(--primary)}
+.dt td.actions{width:44px;text-align:center}
+.db{background:none;border:none;color:var(--error);cursor:pointer;font-size:.95rem;
+  padding:4px 7px;border-radius:4px}
+.db:hover{background:#fee2e2}
+.ab{display:inline-flex;align-items:center;gap:6px;background:none;
+  border:1.5px dashed var(--primary);color:var(--primary);border-radius:6px;
+  padding:7px 14px;font-size:.82rem;cursor:pointer;font-family:inherit;font-weight:600;
+  transition:all .15s;margin-top:4px}
+.ab:hover{background:var(--primary-light)}
+.note{background:#fffbeb;border:1px solid #fbbf24;border-radius:8px;
+  padding:10px 14px;margin-bottom:16px;font-size:.82rem;color:#92400e;
+  display:flex;gap:9px;align-items:flex-start}
+.infob{background:var(--sec);border:1px solid var(--border);border-radius:8px;
+  padding:10px 14px;margin-bottom:16px;font-size:.82rem;color:var(--muted);display:flex;gap:9px}
+.btn{display:inline-flex;align-items:center;gap:7px;border-radius:8px;
+  padding:9px 18px;font-size:.85rem;font-weight:600;cursor:pointer;
+  font-family:inherit;transition:all .15s;border:none}
+.bp{background:var(--primary);color:#fff}
+.bp:hover{background:var(--primary-dark)}
+.bs{background:#fff;color:var(--primary);border:1.5px solid var(--border)}
+.bs:hover{background:var(--sec);border-color:var(--primary)}
+.bw{background:#fff;color:#fff;border:1.5px solid rgba(255,255,255,.4);background:transparent}
+.bw:hover{background:rgba(255,255,255,.15)}
+.bok{background:var(--success);color:#fff}
+.bok:hover{background:#15803d}
+.brem{background:#fee2e2;color:var(--error);border:1px solid #fecaca;padding:6px 10px;font-size:.78rem}
+.brem:hover{background:#fecaca}
+.planadd{text-align:center;margin-top:18px}
+.planadd button{padding:14px 28px;font-size:.95rem;border:2px dashed var(--primary);
+  background:#fff;color:var(--primary);border-radius:10px;cursor:pointer;font-weight:600;
+  transition:all .15s;font-family:inherit}
+.planadd button:hover{background:var(--primary-light)}
+.footer{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid var(--border);
+  padding:12px 30px;display:flex;justify-content:space-between;align-items:center;
+  box-shadow:0 -2px 10px rgba(0,0,0,.08);z-index:40}
+.footer .summary{font-size:.84rem;color:var(--muted)}
+.footer .summary b{color:var(--primary)}
+.footer .actions{display:flex;gap:10px}
+.mask{display:none;position:fixed;inset:0;background:rgba(13,27,75,.55);
+  z-index:90;align-items:center;justify-content:center;padding:20px}
+.mask.vis{display:flex}
+.modal{background:#fff;border-radius:12px;max-width:640px;width:100%;max-height:90vh;
+  overflow:hidden;display:flex;flex-direction:column}
+.modal h3{padding:16px 22px;border-bottom:1px solid var(--border);font-size:1rem;color:var(--primary-dark)}
+.modal .body{padding:18px 22px;overflow-y:auto;flex:1}
+.modal .footer-m{padding:14px 22px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px}
+.carr-list{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.carr-chip{background:var(--sec);border:1px solid var(--border);border-radius:14px;
+  padding:4px 10px 4px 12px;font-size:.78rem;display:inline-flex;align-items:center;gap:6px}
+.carr-chip button{background:none;border:none;color:var(--error);cursor:pointer;font-size:1rem;line-height:1;padding:0}
+.plan-summary{font-size:.76rem;color:var(--muted);margin-left:8px}
+.toast{position:fixed;top:20px;right:20px;background:var(--success);color:#fff;
+  padding:12px 18px;border-radius:8px;box-shadow:0 4px 14px rgba(0,0,0,.2);
+  font-size:.87rem;z-index:200;opacity:0;transform:translateY(-10px);transition:all .25s}
+.toast.vis{opacity:1;transform:translateY(0)}
+.toast.err{background:var(--error)}
+/* === Step 1: full-page product picker === */
+.picker-page{min-height:calc(100vh - 90px);display:flex;flex-direction:column;align-items:center;
+  justify-content:flex-start;padding:40px 20px 60px;text-align:center;background:transparent}
+.picker-page h1{font-size:1.7rem;color:var(--primary-dark);font-weight:700;margin-bottom:8px}
+.picker-page .lead{font-size:.95rem;color:var(--muted);max-width:620px;margin:0 auto 30px}
+.tile-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));
+  gap:14px;width:100%;max-width:960px;margin:0 auto 28px}
+.tile{background:#fff;border:2px solid var(--border);border-radius:12px;padding:18px 16px;
+  cursor:pointer;text-align:left;transition:all .15s;position:relative;
+  display:flex;flex-direction:column;gap:6px;user-select:none}
+.tile:hover{border-color:var(--primary-light);box-shadow:0 3px 10px rgba(37,87,183,.10);transform:translateY(-1px)}
+.tile.on{border-color:var(--primary);background:linear-gradient(180deg,#f3f8ff 0%,#fff 100%);
+  box-shadow:0 4px 14px rgba(37,87,183,.18)}
+.tile.on::after{content:"✓";position:absolute;top:10px;right:12px;background:var(--primary);color:#fff;
+  width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font-size:.85rem;font-weight:700}
+.tile .tile-icon{font-size:1.4rem;line-height:1}
+.tile .tile-title{font-size:.95rem;font-weight:700;color:var(--text)}
+.tile .tile-sub{font-size:.75rem;color:var(--muted);line-height:1.35}
+.tile input{position:absolute;opacity:0;pointer-events:none}
+.picker-actions{display:flex;gap:12px;justify-content:center;margin-top:8px}
+.picker-actions .btn{padding:12px 28px;font-size:.95rem}
+.picker-count{font-size:.83rem;color:var(--muted);margin-bottom:14px}
+.picker-count b{color:var(--primary)}
+/* === Wizard progress dots === */
+.wdot{width:10px;height:10px;border-radius:50%;background:var(--border);transition:all .2s}
+.wdot.done{background:var(--success)}
+.wdot.cur{background:var(--primary);transform:scale(1.35);box-shadow:0 0 0 3px rgba(37,87,183,.18)}
+/* === Review page === */
+.rev-card{background:#fff;border-radius:12px;box-shadow:0 2px 14px rgba(0,0,0,.07);margin-bottom:14px;overflow:hidden}
+.rev-head{display:flex;align-items:center;gap:12px;padding:12px 18px;
+  background:linear-gradient(90deg,var(--primary-dark),var(--primary));color:#fff}
+.rev-head h3{flex:1;font-size:.98rem;font-weight:600}
+.rev-head .rev-edit{background:rgba(255,255,255,.18);color:#fff;border:1px solid rgba(255,255,255,.3);
+  padding:5px 12px;border-radius:6px;font-size:.78rem;cursor:pointer;font-family:inherit}
+.rev-head .rev-edit:hover{background:rgba(255,255,255,.3)}
+.rev-body{padding:14px 20px}
+.rev-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px 22px}
+.rev-row{display:flex;flex-direction:column;gap:1px;padding:6px 0;border-bottom:1px dashed var(--border);font-size:.85rem}
+.rev-row:last-child{border-bottom:none}
+.rev-row .rev-k{font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;font-weight:600}
+.rev-row .rev-v{color:var(--text);word-break:break-word}
+.rev-row .rev-v.empty{color:#cbd5e1;font-style:italic}
+.rev-subhead{font-size:.72rem;color:var(--primary);text-transform:uppercase;letter-spacing:.05em;
+  font-weight:700;padding:10px 0 4px;border-bottom:1px solid var(--border);margin:14px 0 8px}
+.rev-subhead:first-child{margin-top:0}
+.rev-errors{background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:12px 16px;margin-bottom:16px;color:#991b1b;font-size:.85rem}
+.rev-errors h4{margin-bottom:6px;font-size:.9rem}
+.rev-errors ul{margin-left:20px}
+pre.json{background:#0d1b4b;color:#a5d8ff;padding:14px;border-radius:8px;font-size:.76rem;
+  overflow:auto;max-height:55vh;font-family:'Courier New',monospace}
+@media(max-width:700px){
+  .c2,.c3{grid-template-columns:1fr}
+  .hdr{padding:12px 14px}.main{padding:0 8px 140px}.cb{padding:16px 14px}
+  .footer{padding:10px 12px;flex-direction:column;gap:8px}
+  .footer .actions{width:100%;justify-content:space-between}
+}
+</style>
+</head>
+<body>
+
+<header class="hdr">
+  <img src="helix-logo-white.png" alt="Helix Benefit Solutions" class="hdr-logo">
+  <div class="hdr-divider"></div>
+  <div class="hdr-text">
+    <h1>Helix Benefit Solutions Onboarding</h1>
+    <span>Benefit Plan &amp; Rate Setup</span>
+  </div>
+  <div class="spacer"></div>
+  <div class="actions">
+    <button class="btn bw" onclick="saveDraft()" title="Save your progress to this browser — pick up where you left off later">Save Progress</button>
+  </div>
+</header>
+
+<main class="main">
+
+<!-- STEP 1: Full-page product picker -->
+<div class="picker-page" id="card-onboarding">
+  <h1>What are you onboarding for?</h1>
+  <p class="lead">Select all that apply. We'll only ask you questions for the products you choose.</p>
+  <div class="picker-count"><b id="picker-count-num">0</b> selected</div>
+  <div class="tile-grid" id="product-tiles"></div>
+  <div class="picker-actions">
+    <button class="btn bok" id="picker-continue" onclick="continueFromPicker()" disabled style="opacity:.5;cursor:not-allowed">Continue →</button>
+  </div>
+  <!-- legacy hidden checkboxes kept so existing state logic keeps working -->
+  <input type="checkbox" id="ob-cobra" style="display:none">
+  <input type="checkbox" id="ob-cdh" style="display:none">
+</div>
+
+<!-- STEP 2: Everything below appears once a product is selected -->
+<div id="step-2" style="display:none">
+
+<!-- Step 2 banner with wizard progress -->
+<div class="infob" style="margin-top:18px">
+  <div style="font-size:1.1rem;color:var(--primary-dark);font-weight:700;flex:1">
+    <span id="wiz-title">Step 2</span>
+    <div style="font-size:.78rem;color:var(--muted);font-weight:400;margin-top:2px" id="step2-summary">—</div>
+  </div>
+  <div style="display:flex;gap:8px">
+    <button class="btn bs" id="wiz-back" onclick="wizBack()" style="font-size:.82rem">← Back</button>
+    <button class="btn bp" id="wiz-next" onclick="wizNext()" style="font-size:.82rem">Next →</button>
+  </div>
+</div>
+<!-- Wizard progress dots -->
+<div id="wiz-dots" style="display:flex;gap:6px;justify-content:center;margin:0 0 14px;flex-wrap:wrap"></div>
+
+<!-- EMPLOYER HEADER -->
+<div class="card" id="card-employer">
+  <div class="ch" onclick="togc('card-employer')">
+    <h3>Employer Information</h3><span class="tog">&#9662;</span>
+  </div>
+  <div class="cb">
+    <div class="fr c2">
+      <div class="f"><label>Employer / Group Name <span class="req">*</span></label>
+        <input type="text" id="emp-name" required></div>
+      <div class="f"><label>Helix Group Code</label>
+        <input type="text" id="emp-code" placeholder="If already assigned">
+        <div class="hint">Leave blank if this is a net-new group.</div></div>
+    </div>
+    <div class="fr c3">
+      <div class="f"><label>Primary Contact Name</label><input type="text" id="emp-contact"></div>
+      <div class="f"><label>Contact Email</label><input type="email" id="emp-email"></div>
+      <div class="f"><label>Contact Phone</label><input type="tel" id="emp-phone"></div>
+    </div>
+  </div>
+</div>
+
+<!-- COBRA SECTION -->
+<section id="section-cobra" style="display:none">
+  <div class="slbl" style="font-size:.88rem;padding:10px 14px;background:var(--primary-dark);color:#fff;border-left-color:#fff;margin-bottom:14px">
+    COBRA &mdash; Benefit Plan &amp; Rate Setup
+  </div>
+  <div id="plans"></div>
+  <div class="planadd">
+    <button onclick="addPlan()">+ Add COBRA Benefit Plan</button>
+  </div>
+</section>
+
+<!-- CDH SECTION -->
+<section id="section-cdh" style="display:none;margin-top:24px">
+  <div class="slbl" style="font-size:.88rem;padding:10px 14px;background:#0d7a3f;color:#fff;border-left-color:#fff;margin-bottom:14px">
+    CDH &mdash; Consumer Directed Health Plans
+  </div>
+
+  <!-- CDH plan-type picker -->
+  <div class="card" id="card-cdh-picker">
+    <div class="ch" style="background:linear-gradient(90deg,#0d7a3f,#16a34a)" onclick="togc('card-cdh-picker')">
+      <h3>Which CDH plans are you setting up?</h3><span class="tog">&#9662;</span>
+    </div>
+    <div class="cb">
+      <div class="f"><label>Select all that apply <span class="req">*</span></label>
+        <div class="rg" id="cdh-picker"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CDH-level shared settings (shown only if any CDH plan picked) -->
+  <div class="card" id="card-cdh-shared" style="display:none">
+    <div class="ch" style="background:linear-gradient(90deg,#0d7a3f,#16a34a)" onclick="togc('card-cdh-shared')">
+      <h3>CDH Shared Settings</h3>
+      <span class="badge">Applies to all CDH plans</span>
+      <span class="tog">&#9662;</span>
+    </div>
+    <div class="cb" id="cdh-shared-body"></div>
+  </div>
+
+  <!-- per-plan CDH cards render here -->
+  <div id="cdh-plans"></div>
+</section>
+
+<!-- REVIEW PAGE -->
+<section id="section-review" style="display:none">
+  <div class="slbl" style="font-size:.88rem;padding:10px 14px;background:var(--navy);color:#fff;border-left-color:#fff;margin-bottom:14px">
+    Review — Confirm your onboarding details
+  </div>
+  <!-- Submitter email (required to receive confirmation) -->
+  <div class="rev-card" style="border:2px solid var(--primary);box-shadow:0 4px 14px rgba(37,87,183,.15)">
+    <div class="rev-head" style="background:linear-gradient(90deg,#0d1b4b,#2557b7)">
+      <h3>📧 Send me a confirmation</h3>
+    </div>
+    <div class="rev-body">
+      <div class="fr c2">
+        <div class="f">
+          <label>Your Name <span class="req">*</span></label>
+          <input type="text" id="submitter-name" placeholder="Who is submitting this form?" oninput="state.submitter.name=this.value">
+        </div>
+        <div class="f">
+          <label>Your Email Address <span class="req">*</span></label>
+          <input type="email" id="submitter-email" placeholder="you@yourcompany.com" oninput="state.submitter.email=this.value">
+          <div class="hint">A confirmation copy of this submission will be emailed to you and to Helix (service@helixbenefits.net).</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div id="review-errors"></div>
+  <div id="review-summary"></div>
+  <div style="text-align:center;margin:24px 0 8px;color:var(--muted);font-size:.82rem">
+    Tap any <b>Edit</b> link above to jump back and make changes. When everything looks right, hit Submit.
+  </div>
+</section>
+
+</div><!-- /step-2 -->
+
+</main>
+
+<!-- FOOTER -->
+<div class="footer" id="footer-bar">
+  <div class="summary">
+    <b id="plan-count">0</b> COBRA plan(s) &middot; <b id="cdh-count">0</b> CDH plan(s) &middot; Carriers: <b id="carr-count">0</b>
+  </div>
+  <div class="actions">
+    <button class="btn bs" onclick="saveDraft()">Save Draft</button>
+    <button class="btn bs" onclick="jumpToReview()">Review</button>
+    <button class="btn bok" onclick="submitForm()">Submit</button>
+  </div>
+</div>
+
+<!-- MODALS -->
+<div class="mask" id="modal-carriers">
+  <div class="modal">
+    <h3>Manage Carriers</h3>
+    <div class="body">
+      <p class="hint" style="margin-bottom:12px">Carriers saved here are available in every plan's Carrier dropdown.</p>
+      <div class="fr c1">
+        <div class="f">
+          <label>Add a Carrier</label>
+          <div style="display:flex;gap:8px">
+            <input type="text" id="new-carr" placeholder="e.g., Aetna, BCBS, Delta Dental" onkeydown="if(event.key==='Enter'){event.preventDefault();addCarrier()}">
+            <button class="btn bp" onclick="addCarrier()">Add</button>
+          </div>
+        </div>
+      </div>
+      <div class="slbl" style="margin-top:18px">Saved Carriers</div>
+      <div class="carr-list" id="carr-list"></div>
+    </div>
+    <div class="footer-m">
+      <button class="btn bp" onclick="closeModal('modal-carriers')">Done</button>
+    </div>
+  </div>
+</div>
+
+<div class="mask" id="modal-review">
+  <div class="modal">
+    <h3>Review Submission</h3>
+    <div class="body"><pre class="json" id="review-json"></pre></div>
+    <div class="footer-m">
+      <button class="btn bs" onclick="closeModal('modal-review')">Close</button>
+      <button class="btn bs" onclick="downloadJson()">Download JSON</button>
+      <button class="btn bok" onclick="submitForm()">Submit</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- HIDDEN TEMPLATES (option values) -->
+<script>
+// ========= Option lists (from Helix WCC Word doc) =========
+const BENEFIT_TYPES = ["Medical","Rx","Dental","Vision","FSA","HRA","EAP"];
+const FSA_HRA = ["FSA","HRA"];
+const MONTHS = ["January","February","March","April","May","June",
+                "July","August","September","October","November","December"];
+const COVERAGE_TIERS = [
+  "EE","EE + Spouse","EE + Spouse + Child","EE + Spouse + One or Two Children",
+  "EE + Spouse + Two Children","EE + Spouse + Three Children","EE + Spouse + Three or More Children",
+  "EE + Spouse + Four or More Children","EE + Child","EE + Children","EE + Child(ren)",
+  "EE + Two Children","EE + Three Children","EE + Two or More Children","EE + Three or More Children",
+  "EE + Four or More Children","EE + Family","EE + One Dependent","EE + Two Dependents",
+  "EE + Three Dependents","EE + Two or More Dependents","EE + Three or More Dependents",
+  "EE + Four or More Dependents","Spouse Only","Spouse + Child","Spouse + Children",
+  "Spouse + Child(ren)","Spouse + One or Two Children","Spouse + Two Children",
+  "Spouse + Three Children","Spouse + Three or More Children","Spouse + Four or More Children",
+  "Child Only","Children Only","Child(ren) Only","Two Children","Three Children",
+  "Two or More Children","Three or More Children","Four or More Children","One or More People"
+];
+const GENDERS = ["Male","Female","Other","Not Applicable"];
+const LOC_OPTIONS = [
+  {v:"date_of_qe", l:"Date of Qualifying Event",
+    d:"Loss of Coverage is the day of the Qualifying Event. The First Day of COBRA is the day after."},
+  {v:"end_of_month", l:"End of Month (default)",
+    d:"Loss of Coverage is the last day of the month of the Qualifying Event. The First Day of COBRA is the first of the next month."},
+  {v:"end_of_prior_month", l:"End of Prior Month",
+    d:"Loss of Coverage is the last day of the month before the Qualifying Event."},
+  {v:"roll_roll", l:"Roll Roll",
+    d:"QE 1st–15th → Loss 15th, COBRA 16th. QE 16th–31st → Loss last day, COBRA 1st of next month."},
+  {v:"wash_roll", l:"Wash Roll",
+    d:"QE 1st–15th → Loss last day of prior month, COBRA 1st. QE 16th–31st → Loss last day, COBRA 1st of next month."}
+];
+
+// ========= State =========
+let state = { plans:[], carriers:[], employer:{} };
+let planSeq = 0;
+
+// ========= Carrier Management =========
+function addCarrier(){
+  const inp = document.getElementById('new-carr');
+  const v = inp.value.trim();
+  if(!v) return;
+  if(state.carriers.includes(v)){ toast('Already in list','err'); return; }
+  state.carriers.push(v); inp.value='';
+  renderCarriers(); refreshCarrierDropdowns(); updateFooter();
+}
+function removeCarrier(c){
+  state.carriers = state.carriers.filter(x=>x!==c);
+  renderCarriers(); refreshCarrierDropdowns(); updateFooter();
+}
+function renderCarriers(){
+  const el = document.getElementById('carr-list');
+  if(!state.carriers.length){ el.innerHTML = '<span class="hint">No carriers added yet.</span>'; return; }
+  el.innerHTML = state.carriers.map(c =>
+    '<span class="carr-chip">'+escapeHtml(c)+' <button onclick="removeCarrier(\''+escapeAttr(c)+'\')" title="Remove">&times;</button></span>'
+  ).join('');
+}
+function refreshCarrierDropdowns(){
+  document.querySelectorAll('select.carrier-sel').forEach(sel => {
+    const cur = sel.value;
+    sel.innerHTML = carrierOptions(cur);
+  });
+}
+function carrierOptions(current){
+  let opts = '<option value="">— Choose Carrier —</option>';
+  state.carriers.forEach(c => {
+    opts += '<option value="'+escapeAttr(c)+'"'+(c===current?' selected':'')+'>'+escapeHtml(c)+'</option>';
+  });
+  opts += '<option value="__add__">+ Add new carrier…</option>';
+  return opts;
+}
+function onCarrierChange(sel){
+  if(sel.value==='__add__'){
+    const v = prompt('New carrier name:');
+    if(v && v.trim()){
+      const name = v.trim();
+      if(!state.carriers.includes(name)) state.carriers.push(name);
+      renderCarriers(); refreshCarrierDropdowns();
+      sel.value = name;
+    } else {
+      sel.value = '';
+    }
+  }
+}
+function manageCarriers(){ openModal('modal-carriers'); }
+
+// ========= Plan Management =========
+function addPlan(prefill){
+  const id = ++planSeq;
+  const plan = prefill || {
+    id:id, benefitType:'', carrier:'', planName:'',
+    coverage:{cobra:false, direct:false, directType:''},
+    effectiveStart:'', groupNumber:'', billingDay:'1',
+    selfInsured:'no', lossOfCoverage:'end_of_month',
+    planYearMonth:'', planYearDay:'', employeeGroups:'NA',
+    rateEffectiveStart:'', rateEffectiveEnd:'',
+    rateTableType:'', maxChildrenCharged:'3', maxChildAge:'20',
+    composite:[{tier:'',premium:''}],
+    member:[{ageMin:'',ageMax:'',gender:'',premium:''}]
+  };
+  plan.id = id;
+  state.plans.push(plan);
+  renderPlan(plan);
+  updateFooter();
+}
+function renderPlan(p){
+  const container = document.getElementById('plans');
+  const wrap = document.createElement('div');
+  wrap.className = 'card';
+  wrap.id = 'plan-'+p.id;
+  wrap.innerHTML = planHtml(p);
+  container.appendChild(wrap);
+  // wire up initial visibility
+  togglePlanConditionals(p.id);
+}
+function planHtml(p){
+  return `
+  <div class="ch" onclick="togc('plan-${p.id}')">
+    <h3>Plan <span class="pidx">#${p.id}</span><span class="plan-summary" id="ps-${p.id}"></span></h3>
+    <span class="badge" id="pb-${p.id}">New</span>
+    <button class="btn brem" onclick="event.stopPropagation();removePlan(${p.id})">Remove</button>
+    <span class="tog">&#9662;</span>
+  </div>
+  <div class="cb">
+
+    <div class="slbl">Plan Identification</div>
+    <div class="fr c2">
+      <div class="f"><label>Benefit Type <span class="req">*</span></label>
+        <select onchange="updatePlan(${p.id},'benefitType',this.value);togglePlanConditionals(${p.id});refreshBadge(${p.id})">
+          <option value="">Choose an item</option>
+          ${BENEFIT_TYPES.map(b=>`<option value="${b}"${p.benefitType===b?' selected':''}>${b}</option>`).join('')}
+        </select></div>
+      <div class="f"><label>Carrier <span class="req">*</span></label>
+        <select class="carrier-sel" onchange="onCarrierChange(this);updatePlan(${p.id},'carrier',this.value);refreshBadge(${p.id})">
+          ${carrierOptions(p.carrier)}
+        </select>
+        <div class="hint">Not listed? Select "Add new carrier…" or use Manage Carriers.</div></div>
+    </div>
+    <div class="fr c1">
+      <div class="f"><label>Plan Name <span class="req">*</span></label>
+        <input type="text" value="${esc(p.planName)}" oninput="updatePlan(${p.id},'planName',this.value);refreshBadge(${p.id})"></div>
+    </div>
+
+    <div class="slbl">Coverage &amp; Billing</div>
+    <div class="f"><label>Coverage Type (select all that apply) <span class="req">*</span></label>
+      <div class="rg">
+        <label class="ro"><input type="checkbox" ${p.coverage.cobra?'checked':''}
+          onchange="updatePlanCov(${p.id},'cobra',this.checked)">
+          <div class="rolbl"><b>COBRA</b></div></label>
+        <label class="ro"><input type="checkbox" ${p.coverage.direct?'checked':''}
+          onchange="updatePlanCov(${p.id},'direct',this.checked);toggleSub('sub-direct-${p.id}',this.checked)">
+          <div class="rolbl"><b>Direct Billing</b><div class="odesc">e.g., Retiree</div></div></label>
+      </div>
+      <div class="sub ${p.coverage.direct?'vis':''}" id="sub-direct-${p.id}">
+        <div class="f"><label>Direct Billing Type</label>
+          <input type="text" placeholder="e.g., Retiree" value="${esc(p.coverage.directType)}"
+            oninput="updatePlanCovText(${p.id},'directType',this.value)"></div>
+      </div>
+    </div>
+
+    <div class="fr c3" style="margin-top:14px">
+      <div class="f"><label>Effective Start Date <span class="req">*</span></label>
+        <input type="date" value="${esc(p.effectiveStart)}"
+          oninput="updatePlan(${p.id},'effectiveStart',this.value)">
+        <div class="hint">Start date of offering this plan.</div></div>
+      <div class="f"><label>Group Number</label>
+        <input type="text" value="${esc(p.groupNumber)}"
+          oninput="updatePlan(${p.id},'groupNumber',this.value)">
+        <div class="hint">Displayed on enrollment emails.</div></div>
+      <div class="f"><label>Billing Due Day of Month</label>
+        <input type="number" min="1" max="31" value="${esc(p.billingDay)}"
+          oninput="updatePlan(${p.id},'billingDay',this.value)">
+        <div class="hint">Defaults to 1.</div></div>
+    </div>
+
+    <div class="slbl">Plan Administration</div>
+    <div class="f"><label>Self-Insured</label>
+      <div class="rg row">
+        ${['no','yes'].map(v=>`
+        <label class="ro wide ${p.selfInsured===v?'sel':''}">
+          <input type="radio" name="si-${p.id}" value="${v}" ${p.selfInsured===v?'checked':''}
+            onchange="updatePlan(${p.id},'selfInsured',this.value);selRadio(this)">
+          <div class="rolbl"><b>${v==='yes'?'Yes':'No'}</b>
+            <div class="odesc">${v==='yes'?'Claims are paid by the Employer':'Claims are paid by the Carrier'}</div></div>
+        </label>`).join('')}
+      </div>
+      <div class="hint">Defaults to No.</div>
+    </div>
+
+    <div class="f" style="margin-top:14px"><label>Loss of Coverage Determination</label>
+      <div class="rg">
+        ${LOC_OPTIONS.map(o=>`
+        <label class="ro wide ${p.lossOfCoverage===o.v?'sel':''}">
+          <input type="radio" name="loc-${p.id}" value="${o.v}" ${p.lossOfCoverage===o.v?'checked':''}
+            onchange="updatePlan(${p.id},'lossOfCoverage',this.value);selRadio(this)">
+          <div class="rolbl"><b>${o.l}</b><div class="odesc">${o.d}</div></div>
+        </label>`).join('')}
+      </div>
+    </div>
+
+    <div class="fr c3" style="margin-top:14px">
+      <div class="f"><label>Plan Year Start — Month</label>
+        <select onchange="updatePlan(${p.id},'planYearMonth',this.value)">
+          <option value="">Choose…</option>
+          ${MONTHS.map(m=>`<option value="${m}"${p.planYearMonth===m?' selected':''}>${m}</option>`).join('')}
+        </select></div>
+      <div class="f"><label>Plan Year Start — Day</label>
+        <input type="number" min="1" max="31" value="${esc(p.planYearDay)}"
+          oninput="updatePlan(${p.id},'planYearDay',this.value)"></div>
+      <div class="f"><label>Employee Groups</label>
+        <input type="text" value="${esc(p.employeeGroups)}"
+          oninput="updatePlan(${p.id},'employeeGroups',this.value)">
+        <div class="hint">Enter "NA" if this plan is available to ALL participants.</div></div>
+    </div>
+
+    <!-- RATE BLOCK (conditional) -->
+    <div id="rate-${p.id}">
+      <div class="slbl" style="margin-top:22px">Rate Table</div>
+      <div id="rate-fsahra-${p.id}" class="note" style="display:none">
+        <span>&#9432;</span>
+        <div>This is an <b>FSA</b> or <b>HRA</b> plan. Rate table is not applicable — skip rate entries for this plan.</div>
+      </div>
+
+      <div id="rate-main-${p.id}">
+        <div class="fr c2">
+          <div class="f"><label>Rate Effective Start Date</label>
+            <input type="date" value="${esc(p.rateEffectiveStart)}"
+              oninput="updatePlan(${p.id},'rateEffectiveStart',this.value)"></div>
+          <div class="f"><label>Rate Effective End Date</label>
+            <input type="date" value="${esc(p.rateEffectiveEnd)}"
+              oninput="updatePlan(${p.id},'rateEffectiveEnd',this.value)"></div>
+        </div>
+
+        <div class="f" style="margin-top:12px"><label>Rate Table Type</label>
+          <div class="rg row">
+            <label class="ro wide ${p.rateTableType==='composite'?'sel':''}">
+              <input type="radio" name="rtt-${p.id}" value="composite" ${p.rateTableType==='composite'?'checked':''}
+                onchange="updatePlan(${p.id},'rateTableType',this.value);selRadio(this);toggleRate(${p.id})">
+              <div class="rolbl"><b>Composite</b>
+                <div class="odesc">Premium varies by Coverage Tier only.</div></div></label>
+            <label class="ro wide ${p.rateTableType==='member'?'sel':''}">
+              <input type="radio" name="rtt-${p.id}" value="member" ${p.rateTableType==='member'?'checked':''}
+                onchange="updatePlan(${p.id},'rateTableType',this.value);selRadio(this);toggleRate(${p.id})">
+              <div class="rolbl"><b>Member Level</b>
+                <div class="odesc">Premium varies by age &amp; gender per member.</div></div></label>
+          </div>
+        </div>
+
+        <!-- Composite -->
+        <div id="tbl-composite-${p.id}" style="display:none;margin-top:14px">
+          <div class="slbl" style="background:var(--composite);border-left-color:#c77b2a;color:#7c4a14">
+            Composite Rate Table
+          </div>
+          <div class="tw"><table class="dt composite">
+            <thead><tr><th style="width:60%">Coverage Tier</th><th>Premium ($)</th><th></th></tr></thead>
+            <tbody id="tbody-comp-${p.id}"></tbody>
+          </table></div>
+          <button class="ab" onclick="addCompRow(${p.id})">+ Add Tier</button>
+        </div>
+
+        <!-- Member -->
+        <div id="tbl-member-${p.id}" style="display:none;margin-top:14px">
+          <div class="slbl" style="background:var(--member);border-left-color:#16a34a;color:#14532d">
+            Member Level Rate Table
+          </div>
+          <div class="fr c2">
+            <div class="f"><label>Max Children Charged</label>
+              <input type="number" min="0" value="${esc(p.maxChildrenCharged)}"
+                oninput="updatePlan(${p.id},'maxChildrenCharged',this.value)">
+              <div class="hint">Defaults to 3.</div></div>
+            <div class="f"><label>Max Child Age</label>
+              <input type="number" min="0" value="${esc(p.maxChildAge)}"
+                oninput="updatePlan(${p.id},'maxChildAge',this.value)">
+              <div class="hint">Defaults to 20.</div></div>
+          </div>
+          <div class="tw" style="margin-top:10px"><table class="dt member">
+            <thead><tr><th>Age Min</th><th>Age Max</th><th>Gender</th><th>Premium ($)</th><th></th></tr></thead>
+            <tbody id="tbody-mem-${p.id}"></tbody>
+          </table></div>
+          <button class="ab" onclick="addMemRow(${p.id})">+ Add Row</button>
+        </div>
+      </div>
+    </div>
+
+  </div>`;
+}
+function removePlan(id){
+  if(!confirm('Remove this plan?')) return;
+  state.plans = state.plans.filter(p=>p.id!==id);
+  const el = document.getElementById('plan-'+id); if(el) el.remove();
+  updateFooter();
+}
+function updatePlan(id, field, val){
+  const p = getPlan(id); if(!p) return; p[field] = val;
+  if(field==='planName'||field==='benefitType'||field==='carrier') refreshBadge(id);
+}
+function updatePlanCov(id, key, checked){
+  const p = getPlan(id); if(!p) return; p.coverage[key] = checked;
+}
+function updatePlanCovText(id, key, val){
+  const p = getPlan(id); if(!p) return; p.coverage[key] = val;
+}
+function getPlan(id){ return state.plans.find(p=>p.id===id); }
+
+// ========= Conditionals =========
+function togglePlanConditionals(id){
+  const p = getPlan(id); if(!p) return;
+  const isFsaHra = FSA_HRA.includes(p.benefitType);
+  document.getElementById('rate-fsahra-'+id).style.display = isFsaHra ? '' : 'none';
+  document.getElementById('rate-main-'+id).style.display = isFsaHra ? 'none' : '';
+  toggleRate(id);
+}
+function toggleRate(id){
+  const p = getPlan(id); if(!p) return;
+  const isFsaHra = FSA_HRA.includes(p.benefitType);
+  const comp = document.getElementById('tbl-composite-'+id);
+  const mem = document.getElementById('tbl-member-'+id);
+  if(isFsaHra){ comp.style.display='none'; mem.style.display='none'; return; }
+  comp.style.display = p.rateTableType==='composite' ? '' : 'none';
+  mem.style.display = p.rateTableType==='member' ? '' : 'none';
+  if(p.rateTableType==='composite') renderCompRows(id);
+  if(p.rateTableType==='member') renderMemRows(id);
+}
+function toggleSub(id, show){
+  const el = document.getElementById(id); if(el) el.classList.toggle('vis', show);
+}
+function selRadio(input){
+  const name = input.name;
+  document.querySelectorAll('input[name="'+name+'"]').forEach(r=>{
+    const lab = r.closest('.ro'); if(lab) lab.classList.toggle('sel', r.checked);
+  });
+}
+
+// ========= Composite rows =========
+function renderCompRows(id){
+  const p = getPlan(id); if(!p) return;
+  const body = document.getElementById('tbody-comp-'+id); if(!body) return;
+  body.innerHTML = p.composite.map((r,i) => `
+    <tr>
+      <td><select onchange="p_comp(${id},${i},'tier',this.value)">
+        <option value="">Choose a tier…</option>
+        ${COVERAGE_TIERS.map(t=>`<option value="${t}"${r.tier===t?' selected':''}>${t}</option>`).join('')}
+      </select></td>
+      <td><input type="number" step="0.01" min="0" value="${esc(r.premium)}" oninput="p_comp(${id},${i},'premium',this.value)"></td>
+      <td class="actions"><button class="db" onclick="p_compDel(${id},${i})" title="Remove">&times;</button></td>
+    </tr>`).join('');
+}
+function addCompRow(id){ const p=getPlan(id); p.composite.push({tier:'',premium:''}); renderCompRows(id); }
+function p_comp(id,i,k,v){ const p=getPlan(id); if(!p||!p.composite[i])return; p.composite[i][k]=v; }
+function p_compDel(id,i){ const p=getPlan(id); p.composite.splice(i,1); if(!p.composite.length) p.composite.push({tier:'',premium:''}); renderCompRows(id); }
+
+// ========= Member rows =========
+function renderMemRows(id){
+  const p = getPlan(id); if(!p) return;
+  const body = document.getElementById('tbody-mem-'+id); if(!body) return;
+  body.innerHTML = p.member.map((r,i) => `
+    <tr>
+      <td><input type="number" min="0" value="${esc(r.ageMin)}" oninput="p_mem(${id},${i},'ageMin',this.value)"></td>
+      <td><input type="number" min="0" value="${esc(r.ageMax)}" oninput="p_mem(${id},${i},'ageMax',this.value)"></td>
+      <td><select onchange="p_mem(${id},${i},'gender',this.value)">
+        <option value="">Choose…</option>
+        ${GENDERS.map(g=>`<option value="${g}"${r.gender===g?' selected':''}>${g}</option>`).join('')}
+      </select></td>
+      <td><input type="number" step="0.01" min="0" value="${esc(r.premium)}" oninput="p_mem(${id},${i},'premium',this.value)"></td>
+      <td class="actions"><button class="db" onclick="p_memDel(${id},${i})" title="Remove">&times;</button></td>
+    </tr>`).join('');
+}
+function addMemRow(id){ const p=getPlan(id); p.member.push({ageMin:'',ageMax:'',gender:'',premium:''}); renderMemRows(id); }
+function p_mem(id,i,k,v){ const p=getPlan(id); if(!p||!p.member[i])return; p.member[i][k]=v; }
+function p_memDel(id,i){ const p=getPlan(id); p.member.splice(i,1); if(!p.member.length) p.member.push({ageMin:'',ageMax:'',gender:'',premium:''}); renderMemRows(id); }
+
+// ========= UI Helpers =========
+function togc(id){ document.getElementById(id).classList.toggle('collapsed'); }
+function openModal(id){ document.getElementById(id).classList.add('vis'); }
+function closeModal(id){ document.getElementById(id).classList.remove('vis'); }
+function toast(msg, kind){
+  const t = document.getElementById('toast'); t.textContent = msg;
+  t.className = 'toast vis' + (kind==='err'?' err':'');
+  clearTimeout(t._h); t._h = setTimeout(()=>t.className='toast',2600);
+}
+function refreshBadge(id){
+  const p = getPlan(id); if(!p) return;
+  const badge = document.getElementById('pb-'+id);
+  const summary = document.getElementById('ps-'+id);
+  if(!badge) return;
+  const parts = [p.benefitType, p.carrier, p.planName].filter(Boolean);
+  badge.textContent = parts.length ? (p.benefitType || 'Draft') : 'New';
+  if(summary) summary.textContent = parts.length ? ('— '+parts.slice(1).join(' · ')) : '';
+}
+function updateFooter(){
+  const cobraN = state.onboarding.cobra ? state.plans.length : 0;
+  const cdhN = state.onboarding.cdh
+    ? Object.values(state.cdh.selectedTypes).filter(Boolean).length : 0;
+  document.getElementById('plan-count').textContent = cobraN;
+  document.getElementById('cdh-count').textContent = cdhN;
+  document.getElementById('carr-count').textContent = state.carriers.length;
+}
+function esc(v){ return String(v??'').replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
+function escapeHtml(v){ return String(v??'').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function escapeAttr(v){ return String(v??'').replace(/'/g,"\\'").replace(/"/g,'&quot;'); }
+
+// ========= Employer data collection =========
+function collectEmployer(){
+  return {
+    name: val('emp-name'), helixCode: val('emp-code'),
+    contactName: val('emp-contact'), contactEmail: val('emp-email'),
+    contactPhone: val('emp-phone')
+  };
+}
+function val(id){ const el = document.getElementById(id); return el ? el.value.trim() : ''; }
+
+// ========= Draft / Submit =========
+const STORAGE_KEY = 'helix_cobra_benefitplan_draft';
+
+function saveDraft(){
+  state.employer = collectEmployer();
+  try{
+    const blob = {
+      savedAt: new Date().toISOString(),
+      state,
+      planSeq
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(blob));
+    toast('Progress saved — you can close this tab and come back later.');
+  }catch(e){ toast('Could not save progress','err'); }
+}
+function hasSavedDraft(){
+  try { return !!localStorage.getItem(STORAGE_KEY); } catch(e){ return false; }
+}
+function discardDraft(){
+  try { localStorage.removeItem(STORAGE_KEY); } catch(e){}
+  const b = document.getElementById('draft-banner'); if(b) b.remove();
+  toast('Saved progress discarded.');
+}
+function loadDraft(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(!raw){ toast('No saved progress found','err'); return; }
+    const data = JSON.parse(raw);
+    // Restore state, falling back gracefully for older drafts
+    state = Object.assign({ plans:[], carriers:[], employer:{},
+      onboarding:{cobra:false,cdh:false},
+      cdh:{selectedTypes:{}, shared:{}, plans:{}},
+      submitter:{name:'',email:''},
+      tilesPicked:{}, commuterModes:{},
+      wizard:{ steps:[], idx:0 }
+    }, data.state || {});
+    planSeq = data.planSeq || 0;
+
+    // Rebuild COBRA plan cards
+    document.getElementById('plans').innerHTML = '';
+    state.plans.forEach(p => renderPlan(p));
+    renderCarriers();
+
+    // Employer inputs
+    const e = state.employer||{};
+    setVal('emp-name',e.name); setVal('emp-code',e.helixCode);
+    setVal('emp-contact',e.contactName); setVal('emp-email',e.contactEmail); setVal('emp-phone',e.contactPhone);
+
+    // Re-render product tiles with prior picks
+    renderProductTiles();
+    Object.keys(state.tilesPicked||{}).forEach(k => {
+      if(state.tilesPicked[k]) onTileToggle(k, true);
+    });
+
+    // If they had products picked, jump straight into the wizard at saved step
+    const anyPicked = Object.values(state.tilesPicked||{}).some(Boolean);
+    if(anyPicked){
+      continueFromPicker();
+      // Pre-check the CDH plan-type internal picker checkboxes
+      Object.keys(state.cdh.selectedTypes||{}).forEach(k => {
+        if(state.cdh.selectedTypes[k]){
+          const cb = document.getElementById('cdh-t-'+k);
+          if(cb){ cb.checked = true; toggleCdhType(k, true); }
+        }
+      });
+      // Re-apply previously saved CDH plan field values
+      Object.keys(state.cdh.plans||{}).forEach(k => {
+        Object.keys(state.cdh.plans[k]||{}).forEach(field => {
+          const el = document.getElementById('cdh-field-'+k+'-'+field);
+          if(el){
+            if(el.type === 'checkbox') el.checked = !!state.cdh.plans[k][field];
+            else el.value = state.cdh.plans[k][field];
+          }
+          // For radio groups
+          document.querySelectorAll(`input[name="cdh-${k}-${field}"]`).forEach(r => {
+            r.checked = (r.value === String(state.cdh.plans[k][field]));
+          });
+        });
+        if(typeof applyCdhShowIf === 'function') applyCdhShowIf(k);
+        if(typeof refreshCdhBadge === 'function') refreshCdhBadge(k);
+      });
+      // CDH shared
+      Object.keys(state.cdh.shared||{}).forEach(field => {
+        const el = document.getElementById('cdh-field-shared-'+field);
+        if(el){ if(el.type==='checkbox') el.checked = !!state.cdh.shared[field]; else el.value = state.cdh.shared[field]; }
+        document.querySelectorAll(`input[name="cdh-shared-${field}"]`).forEach(r => {
+          r.checked = (r.value === String(state.cdh.shared[field]));
+        });
+      });
+      // Jump to saved wizard step (default to first if not saved)
+      if(state.wizard && typeof state.wizard.idx === 'number' && state.wizard.idx >= 0){
+        gotoWizardStep(Math.min(state.wizard.idx, state.wizard.steps.length-1));
+      }
+    }
+
+    state.plans.forEach(p=>{ togglePlanConditionals(p.id); refreshBadge(p.id); });
+    updateFooter();
+
+    const banner = document.getElementById('draft-banner'); if(banner) banner.remove();
+    const when = data.savedAt ? new Date(data.savedAt).toLocaleString() : 'earlier';
+    toast('Progress restored from ' + when);
+  }catch(e){
+    console.error(e);
+    toast('Error loading saved progress','err');
+  }
+}
+
+// Banner shown on init if a draft exists
+function showDraftBanner(){
+  if(!hasSavedDraft()) return;
+  let savedWhen = '';
+  try {
+    const data = JSON.parse(localStorage.getItem(STORAGE_KEY));
+    if(data && data.savedAt) savedWhen = ' from ' + new Date(data.savedAt).toLocaleString();
+  } catch(e){}
+  const div = document.createElement('div');
+  div.id = 'draft-banner';
+  div.style.cssText = 'background:#fffbeb;border:1px solid #fbbf24;border-radius:8px;padding:12px 18px;margin:18px auto;max-width:960px;display:flex;align-items:center;gap:14px;font-size:.88rem;color:#92400e';
+  div.innerHTML = `
+    <span style="font-size:1.3rem">💾</span>
+    <div style="flex:1">
+      <b>You have saved progress${escapeHtml(savedWhen)}.</b>
+      <div style="font-size:.78rem;color:#78350f;margin-top:2px">Resume where you left off, or start over with a fresh form.</div>
+    </div>
+    <button class="btn bp" onclick="loadDraft()" style="padding:7px 14px;font-size:.82rem">Resume</button>
+    <button class="btn bs" onclick="discardDraft()" style="padding:7px 14px;font-size:.82rem">Discard</button>
+  `;
+  const main = document.querySelector('main.main');
+  main.insertBefore(div, main.firstChild);
+}
+function setVal(id,v){ const el = document.getElementById(id); if(el && v!=null) el.value = v; }
+function validate(){
+  const errors = [];
+  const e = collectEmployer();
+  if(!e.name) errors.push('Employer / Group Name is required.');
+  // Submitter info required so we can email a confirmation
+  if(!state.submitter.name) errors.push('Submitter Name is required (review page).');
+  const em = (state.submitter.email||'').trim();
+  if(!em) errors.push('Submitter Email Address is required (review page).');
+  else if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) errors.push('Submitter Email Address is not a valid email.');
+  if(!state.onboarding.cobra && !state.onboarding.cdh){
+    errors.push('Select at least one product to onboard (COBRA or CDH).');
+  }
+  if(state.onboarding.cobra && !state.plans.length) errors.push('COBRA is selected but no benefit plan was added.');
+  if(state.onboarding.cdh){
+    const selected = Object.keys(state.cdh.selectedTypes).filter(k=>state.cdh.selectedTypes[k]);
+    if(!selected.length) errors.push('CDH is selected but no plan type was chosen.');
+    selected.forEach(k => {
+      const bag = state.cdh.plans[k] || {};
+      if(!bag.planName) errors.push('CDH '+k.toUpperCase()+': Plan Name is required.');
+      if(!bag.planStart) errors.push('CDH '+k.toUpperCase()+': Plan Start Date is required.');
+    });
+    if(selected.length && !state.cdh.shared.primaryFinContact){
+      errors.push('CDH Shared Settings: Primary Financial Contact is required.');
+    }
+  }
+  if(state.onboarding.cobra) state.plans.forEach((p,i)=>{
+    const n = 'Plan #'+(i+1)+': ';
+    if(!p.benefitType) errors.push(n+'Benefit Type is required.');
+    if(!p.carrier) errors.push(n+'Carrier is required.');
+    if(!p.planName) errors.push(n+'Plan Name is required.');
+    if(!p.coverage.cobra && !p.coverage.direct) errors.push(n+'At least one Coverage Type is required.');
+    if(p.coverage.direct && !p.coverage.directType) errors.push(n+'Direct Billing Type is required when Direct Billing is selected.');
+    if(!p.effectiveStart) errors.push(n+'Effective Start Date is required.');
+    const isFsaHra = FSA_HRA.includes(p.benefitType);
+    if(!isFsaHra){
+      if(!p.rateTableType) errors.push(n+'Rate Table Type is required (Composite or Member Level).');
+      if(p.rateTableType==='composite'){
+        const rows = p.composite.filter(r=>r.tier||r.premium);
+        if(!rows.length) errors.push(n+'Composite rate table needs at least one row.');
+      }
+      if(p.rateTableType==='member'){
+        const rows = p.member.filter(r=>r.ageMin||r.ageMax||r.gender||r.premium);
+        if(!rows.length) errors.push(n+'Member-level rate table needs at least one row.');
+      }
+    }
+  });
+  return errors;
+}
+function buildSubmission(){
+  state.employer = collectEmployer();
+  const selectedCdh = Object.keys(state.cdh.selectedTypes).filter(k=>state.cdh.selectedTypes[k]);
+  return {
+    submittedAt: new Date().toISOString(),
+    submitter: { name: state.submitter.name || '', email: state.submitter.email || '' },
+    employer: state.employer,
+    onboarding: {
+      cobra: state.onboarding.cobra,
+      cdh: state.onboarding.cdh
+    },
+    cobra: state.onboarding.cobra ? {
+      carriers: state.carriers,
+      plans: state.plans.map(p => buildCobraPlan(p))
+    } : null,
+    cdh: state.onboarding.cdh ? {
+      selectedPlanTypes: selectedCdh,
+      sharedSettings: state.cdh.shared,
+      plans: selectedCdh.reduce((acc,k) => { acc[k] = state.cdh.plans[k] || {}; return acc; }, {})
+    } : null,
+  };
+}
+function buildCobraPlan(p){
+  const isFsaHra = FSA_HRA.includes(p.benefitType);
+  return {
+    benefitType: p.benefitType, carrier: p.carrier, planName: p.planName,
+    coverageType: {
+      cobra: p.coverage.cobra,
+      directBilling: p.coverage.direct,
+      directBillingType: p.coverage.direct ? p.coverage.directType : null
+    },
+    effectiveStartDate: p.effectiveStart, groupNumber: p.groupNumber,
+    billingDueDay: Number(p.billingDay)||1,
+    selfInsured: p.selfInsured==='yes',
+    lossOfCoverageDetermination: p.lossOfCoverage,
+    planYearStart: { month: p.planYearMonth, day: Number(p.planYearDay)||null },
+    employeeGroups: p.employeeGroups,
+    rates: isFsaHra ? { notApplicable:true, reason:'FSA or HRA plan'} : {
+      effectiveStart: p.rateEffectiveStart,
+      effectiveEnd: p.rateEffectiveEnd,
+      tableType: p.rateTableType,
+      composite: p.rateTableType==='composite'
+        ? p.composite.filter(r=>r.tier||r.premium).map(r=>({tier:r.tier, premium:Number(r.premium)||0}))
+        : null,
+      memberLevel: p.rateTableType==='member' ? {
+        maxChildrenCharged: Number(p.maxChildrenCharged)||3,
+        maxChildAge: Number(p.maxChildAge)||20,
+        rows: p.member.filter(r=>r.ageMin||r.ageMax||r.gender||r.premium)
+          .map(r=>({ageMin:Number(r.ageMin)||0, ageMax:Number(r.ageMax)||0,
+                   gender:r.gender, premium:Number(r.premium)||0}))
+      } : null
+    }
+  };
+}
+function showReview(){
+  // Legacy JSON modal — kept for "Download JSON" workflow
+  const errs = validate();
+  const sub = buildSubmission();
+  let body = '';
+  if(errs.length) body += '// ⚠ Validation issues:\n'+errs.map(e=>'// - '+e).join('\n')+'\n\n';
+  body += JSON.stringify(sub, null, 2);
+  document.getElementById('review-json').textContent = body;
+  openModal('modal-review');
+}
+function jumpToReview(){
+  // New friendly review page — jump to it in the wizard
+  if(!state.wizard.steps || !state.wizard.steps.length){ showReview(); return; }
+  const idx = state.wizard.steps.indexOf('review');
+  if(idx >= 0) gotoWizardStep(idx);
+  else showReview();
+}
+function downloadJson(){
+  const sub = buildSubmission();
+  const blob = new Blob([JSON.stringify(sub, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'helix-cobra-plan-setup.json'; a.click();
+  URL.revokeObjectURL(url);
+}
+async function submitForm(){
+  const errs = validate();
+  if(errs.length){
+    toast(errs.length+' issue(s) — fix items at top of Review','err');
+    jumpToReview();
+    return;
+  }
+  const sub = buildSubmission();
+  sub.submittedAt = new Date().toISOString();
+  try {
+    const r = await fetch('/api/submissions', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(sub)
+    });
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const data = await r.json();
+    toast('Submitted → '+data.id);
+    closeModal('modal-review');
+    try { localStorage.removeItem('helix-cobra-draft'); } catch(e){}
+  } catch(e) {
+    console.error('Submit failed, falling back to download:', e);
+    toast('Server unreachable — JSON downloaded','err');
+    downloadJson();
+    closeModal('modal-review');
+  }
+}
+
+// ========= CDH =========
+const CDH_PLAN_TYPES = [
+  { key:'hcfsa', label:'Healthcare FSA (HCFSA)',
+    desc:'Pre-tax spending on eligible medical, dental, vision expenses.' },
+  { key:'dcfsa', label:'Dependent Care FSA (DCFSA/DCAP)',
+    desc:'Pre-tax spending on eligible dependent care (childcare, adult care).' },
+  { key:'hsa',   label:'Health Savings Account (HSA)',
+    desc:'Tax-advantaged account paired with a qualified HDHP.' },
+  { key:'hra',   label:'Health Reimbursement Arrangement (HRA)',
+    desc:'Employer-funded account to reimburse eligible medical expenses.' },
+  { key:'commuter', label:'Commuter (Transit / Parking)',
+    desc:'Pre-tax transit and parking benefits.' },
+  { key:'lpfsa', label:'Limited Purpose FSA (LPFSA)',
+    desc:'HSA-compatible FSA for dental/vision only.' }
+];
+
+// Per-plan field definitions — drives conditional form rendering
+// type: text, date, number, money, select, radio, toggle (yes/no)
+const YN = [{v:'yes',l:'Yes'},{v:'no',l:'No'}];
+const CDH_FIELDS = {
+  _common: [
+    { k:'planName', l:'Plan Name', type:'text', req:true },
+    { k:'planStart', l:'Plan Start Date', type:'date', req:true },
+    { k:'cardOffered', l:'Card Offered?', type:'radio', opts:YN, def:'yes' },
+    { k:'maxElection', l:'Maximum Election Amount', type:'money' },
+    { k:'minElection', l:'Minimum Election Amount', type:'money' },
+    { k:'proofOfExpense', l:'Proof of Expense Required?', type:'radio',
+      opts:[{v:'always',l:'Always'},{v:'random',l:'Random Sample'},{v:'never',l:'Never'}], def:'always' },
+    { k:'aiAdjudication', l:'AI Adjudication', type:'radio', opts:YN, def:'no' },
+    { k:'includeInBalanceNotif', l:'Include in Balance Notifications', type:'radio', opts:YN, def:'yes' }
+  ],
+  _coverage: [
+    { k:'termEndsCoverage', l:'Termination ends coverage on employment termination?', type:'radio', opts:YN, def:'yes' },
+    { k:'termDays', l:'# of days after termination (if applicable)', type:'number' },
+    { k:'runoutDays', l:'Run-out Deadline (days after end of plan)', type:'number' },
+    { k:'endOfCoverageDeadline', l:'Submit-claim deadline after end of coverage (days)', type:'number' },
+    { k:'gracePeriod', l:'Grace Period (days after plan end)', type:'number' }
+  ],
+  _funding: [
+    { k:'allowOverElection', l:'Allow contributions to go over election?', type:'radio', opts:YN, def:'no' },
+    { k:'forfeitAllowed', l:'Forfeit Allowed?', type:'radio', opts:YN, def:'yes' },
+    { k:'forfeitDays', l:'Forfeit Days (after plan can no longer pay claims)', type:'number' },
+    { k:'rolloverAllowed', l:'Rollover Allowed?', type:'radio', opts:YN, def:'no' },
+    { k:'maxRollover', l:'Maximum Rollover Amount', type:'money', showIf:'rolloverAllowed=yes' },
+    { k:'minRollover', l:'Minimum Rollover Amount', type:'money', showIf:'rolloverAllowed=yes' },
+    { k:'allowPriorYearClaims', l:'Allow Prior Year Claims?', type:'radio', opts:YN, def:'no' },
+    { k:'autoEnrollment', l:'Auto Enrollment?', type:'radio', opts:YN, def:'no' }
+  ],
+  hcfsa: { common:true, coverage:true, funding:true, extra:[
+    { k:'planLevelFunding', l:'Plan Level Funding?', type:'radio', opts:YN, def:'no' }
+  ]},
+  dcfsa: { common:true, coverage:true, funding:true, extra:[
+    { k:'replenished', l:'Is Replenished?', type:'radio', opts:YN, def:'yes' }
+  ]},
+  lpfsa: { common:true, coverage:true, funding:true, extra:[] },
+  hra: { common:true, coverage:true, funding:true, extra:[
+    { k:'cmsReporting', l:'CMS Reporting Required?', type:'radio', opts:YN, def:'no' },
+    { k:'payOutsideCoverage', l:'Pay claims outside of coverage period?', type:'radio', opts:YN, def:'no' }
+  ]},
+  hsa: { extra:[
+    { k:'planName', l:'Plan Name', type:'text', req:true },
+    { k:'planStart', l:'Plan Start Date', type:'date', req:true },
+    { k:'cardOffered', l:'Card Offered?', type:'radio', opts:YN, def:'yes' },
+    { k:'availableBalance', l:'Available Balance Method', type:'select',
+      opts:['Cash Balance Only','Cash + Investment Balance'] },
+    { k:'aiAdjudication', l:'AI Adjudication', type:'radio', opts:YN, def:'no' },
+    { k:'investmentOptions', l:'Investment Options Enabled?', type:'radio', opts:YN, def:'yes' },
+    { k:'investmentThreshold', l:'Investment Threshold ($)', type:'money', showIf:'investmentOptions=yes' },
+    { k:'minInvestment', l:'Minimum Investment Amount ($)', type:'money', showIf:'investmentOptions=yes' },
+    { k:'cipRequired', l:'CIP Required?', type:'radio', opts:YN, def:'yes' },
+    { k:'closeCipDays', l:'Close Unresolved CIP Accounts After (days)', type:'number', showIf:'cipRequired=yes' },
+    { k:'pendForCip', l:'Pend Contributions for CIP?', type:'radio', opts:YN, def:'yes', showIf:'cipRequired=yes' },
+    { k:'payOutsideCoverage', l:'Pay claims outside of coverage period?', type:'radio', opts:YN, def:'no' },
+    { k:'allowIndividualContrib', l:'Allow Individual Contributions', type:'radio', opts:YN, def:'yes' },
+    { k:'minContribution', l:'Minimum Contribution Amount', type:'money' }
+  ]},
+  commuter: { extra:[
+    { k:'planName', l:'Plan Name', type:'text', req:true },
+    { k:'planStart', l:'Plan Start Date', type:'date', req:true },
+    { k:'cardOffered', l:'Card Offered?', type:'radio', opts:YN, def:'yes' },
+    { k:'transit', l:'Offer Transit Benefit?', type:'radio', opts:YN, def:'yes' },
+    { k:'parking', l:'Offer Parking Benefit?', type:'radio', opts:YN, def:'yes' },
+    { k:'transitMax', l:'Transit Monthly Max ($)', type:'money', showIf:'transit=yes' },
+    { k:'parkingMax', l:'Parking Monthly Max ($)', type:'money', showIf:'parking=yes' },
+    { k:'rolloverAllowed', l:'Rollover Allowed?', type:'radio', opts:YN, def:'yes' }
+  ]}
+};
+
+const CDH_SHARED_FIELDS = [
+  { section:'Invoicing & Funding' },
+  { k:'primaryFinContact', l:'Primary Financial Contact', type:'text', req:true },
+  { k:'bankAccount', l:'Bank Account (last 4)', type:'text', hint:'Used for ACH funding.' },
+  { k:'allowManualContrib', l:'Allow Manual Contributions', type:'radio', opts:YN, def:'yes' },
+  { k:'allowScheduledContrib', l:'Allow Scheduled Contributions', type:'radio', opts:YN, def:'yes' },
+  { section:'Payroll' },
+  { k:'payrollGroupName', l:'Payroll Group Name', type:'text' },
+  { k:'payrollGroupCode', l:'Payroll Group Code', type:'text' },
+  { k:'payrollCalendar', l:'Payroll Calendar Name', type:'text' },
+  { k:'payrollFrequency', l:'Payroll Frequency', type:'select',
+    opts:['Weekly','Bi-Weekly','Semi-Monthly','Monthly'] },
+  { k:'payrollStart', l:'Payroll Starting Date (1st payroll applied at Helix)', type:'date' },
+  { section:'Reimbursement Options' },
+  { k:'allowReimbursement', l:'Allow Reimbursement', type:'radio', opts:YN, def:'yes' },
+  { k:'allowDirectDeposit', l:'Allow Direct Deposit', type:'radio', opts:YN, def:'yes' },
+  { k:'thirdPartyPay', l:'Paypal / Venmo / Check Fee / Personal Debit Card', type:'select',
+    opts:['None','Paypal','Venmo','Check','Personal Debit Card','Multiple'] }
+];
+
+// CDH state
+state.cdh = { selectedTypes:{}, shared:{}, plans:{} };
+state.submitter = { name:'', email:'' };
+// onboarding toggles
+state.onboarding = { cobra:false, cdh:false };
+
+function toggleOnboarding(){
+  state.onboarding.cobra = document.getElementById('ob-cobra').checked;
+  state.onboarding.cdh = document.getElementById('ob-cdh').checked;
+  // NOTE: do NOT auto-show step-2 here — that's controlled by continueFromPicker / showStep
+  document.getElementById('section-cobra').style.display = state.onboarding.cobra ? '' : 'none';
+  document.getElementById('section-cdh').style.display = state.onboarding.cdh ? '' : 'none';
+  // Update the Step 2 summary line
+  const picks = [];
+  if(state.onboarding.cobra) picks.push('COBRA');
+  if(state.onboarding.cdh) picks.push('CDH');
+  const sumEl = document.getElementById('step2-summary');
+  if(sumEl) sumEl.textContent = 'Selected: ' + (picks.join(' + ') || '—');
+  // Auto-add first COBRA plan when enabling
+  if(state.onboarding.cobra && state.plans.length === 0) addPlan();
+  if(state.onboarding.cdh) ensureCdhInit();
+  updateFooter();
+}
+
+function ensureCdhInit(){
+  const picker = document.getElementById('cdh-picker');
+  if(picker.childElementCount) return;
+  picker.innerHTML = CDH_PLAN_TYPES.map(t => `
+    <label class="ro wide">
+      <input type="checkbox" id="cdh-t-${t.key}" onchange="toggleCdhType('${t.key}',this.checked)">
+      <div class="rolbl"><b>${t.label}</b><div class="odesc">${t.desc}</div></div>
+    </label>`).join('');
+  // Render shared body
+  renderCdhShared();
+}
+
+function toggleCdhType(key, on){
+  state.cdh.selectedTypes[key] = on;
+  const anyOn = Object.values(state.cdh.selectedTypes).some(Boolean);
+  document.getElementById('card-cdh-shared').style.display = anyOn ? '' : 'none';
+  renderCdhPlans();
+  updateFooter();
+}
+
+function renderCdhShared(){
+  const body = document.getElementById('cdh-shared-body');
+  body.innerHTML = CDH_SHARED_FIELDS.map(f =>
+    f.section ? `<div class="slbl">${f.section}</div>` : renderCdhField(f,'shared','cdh-shared')
+  ).join('');
+}
+
+function renderCdhPlans(){
+  const container = document.getElementById('cdh-plans');
+  const selectedKeys = CDH_PLAN_TYPES.map(t=>t.key).filter(k => state.cdh.selectedTypes[k]);
+  // remove unselected cards
+  Array.from(container.children).forEach(child => {
+    const key = child.dataset.key;
+    if(!selectedKeys.includes(key)) child.remove();
+  });
+  // add new cards
+  selectedKeys.forEach(key => {
+    if(container.querySelector(`[data-key="${key}"]`)) return;
+    const def = CDH_FIELDS[key];
+    if(!state.cdh.plans[key]) state.cdh.plans[key] = {};
+    const t = CDH_PLAN_TYPES.find(x=>x.key===key);
+    const card = document.createElement('div');
+    card.className = 'card'; card.dataset.key = key;
+    card.id = 'cdh-card-'+key;
+    let fields = [];
+    if(def.common) fields = fields.concat([{section:'Plan Details'}, ...CDH_FIELDS._common]);
+    if(def.coverage) fields = fields.concat([{section:'Coverage'}, ...CDH_FIELDS._coverage]);
+    if(def.funding) fields = fields.concat([{section:'Account Funding'}, ...CDH_FIELDS._funding]);
+    if(def.extra && def.extra.length) {
+      // If no common, this plan uses extras as its main fields
+      const hasSection = def.common || def.coverage || def.funding;
+      fields = fields.concat(hasSection ? [{section:t.label+' Options'}, ...def.extra] : def.extra);
+    }
+    card.innerHTML = `
+      <div class="ch" style="background:linear-gradient(90deg,#0d7a3f,#16a34a)" onclick="togc('cdh-card-${key}')">
+        <h3>${t.label}</h3>
+        <span class="badge" id="cdh-badge-${key}">Draft</span>
+        <span class="tog">&#9662;</span>
+      </div>
+      <div class="cb">
+        ${fields.map(f => f.section
+          ? `<div class="slbl">${f.section}</div>`
+          : renderCdhField(f, key, 'cdh-field-'+key+'-'+f.k)).join('')}
+      </div>`;
+    container.appendChild(card);
+    // Apply defaults and showIf
+    def && applyCdhDefaults(key);
+    applyCdhShowIf(key);
+    refreshCdhBadge(key);
+  });
+}
+
+function renderCdhField(f, key, fieldId){
+  const bag = key === 'shared' ? state.cdh.shared : (state.cdh.plans[key] = state.cdh.plans[key] || {});
+  const cur = bag[f.k] != null ? bag[f.k] : (f.def != null ? f.def : '');
+  bag[f.k] = cur;
+  const showIf = f.showIf ? ` data-showif="${f.showIf}"` : '';
+  const onInput = `cdhSet('${key}','${f.k}',this.type==='checkbox'?this.checked:this.value)`;
+  let inner = '';
+  if(f.type === 'text' || f.type === 'date' || f.type === 'number' || f.type === 'money') {
+    const inputType = f.type === 'money' ? 'number' : f.type;
+    const step = f.type === 'money' ? ' step="0.01" min="0"' : '';
+    inner = `<input type="${inputType}"${step} value="${esc(cur)}" oninput="${onInput}">`;
+  } else if(f.type === 'select') {
+    inner = `<select onchange="${onInput}">
+      <option value="">Choose…</option>
+      ${f.opts.map(o=>`<option value="${esc(o)}"${cur===o?' selected':''}>${esc(o)}</option>`).join('')}
+    </select>`;
+  } else if(f.type === 'radio') {
+    inner = `<div class="rg">${f.opts.map(o => {
+      const ov = typeof o === 'string' ? o : o.v;
+      const ol = typeof o === 'string' ? o : o.l;
+      const gid = `r-${key}-${f.k}`;
+      return `<label class="ro ${cur===ov?'sel':''}">
+        <input type="radio" name="${gid}" value="${esc(ov)}" ${cur===ov?'checked':''}
+          onchange="cdhSet('${key}','${f.k}',this.value);selRadio(this);applyCdhShowIf('${key}');refreshCdhBadge('${key}')">
+        <div class="rolbl"><b>${esc(ol)}</b></div>
+      </label>`;
+    }).join('')}</div>`;
+  }
+  return `<div class="f" id="${fieldId}"${showIf}>
+    <label>${esc(f.l)}${f.req?' <span class="req">*</span>':''}</label>
+    ${inner}
+    ${f.hint?`<div class="hint">${esc(f.hint)}</div>`:''}
+  </div>`;
+}
+
+function cdhSet(key, field, val){
+  const bag = key === 'shared' ? state.cdh.shared : (state.cdh.plans[key] = state.cdh.plans[key] || {});
+  bag[field] = val;
+  if(key !== 'shared') { applyCdhShowIf(key); refreshCdhBadge(key); }
+}
+
+function applyCdhDefaults(key){
+  const bag = state.cdh.plans[key] || {};
+  // Sync radio UI with current values
+  document.querySelectorAll(`#cdh-card-${key} input[type="radio"]`).forEach(r => {
+    const parts = r.name.split('-'); // r-<key>-<field>
+    const field = parts.slice(2).join('-');
+    if(bag[field] === r.value){
+      r.checked = true;
+      const ro = r.closest('.ro'); if(ro) ro.classList.add('sel');
+    }
+  });
+}
+
+function applyCdhShowIf(key){
+  const card = document.getElementById('cdh-card-'+key);
+  if(!card) return;
+  const bag = key === 'shared' ? state.cdh.shared : (state.cdh.plans[key] || {});
+  card.querySelectorAll('[data-showif]').forEach(el => {
+    const [fld, val] = el.dataset.showif.split('=');
+    el.style.display = (String(bag[fld]) === val) ? '' : 'none';
+  });
+}
+
+function refreshCdhBadge(key){
+  const badge = document.getElementById('cdh-badge-'+key);
+  if(!badge) return;
+  const bag = state.cdh.plans[key] || {};
+  badge.textContent = bag.planName ? bag.planName : 'Draft';
+}
+
+// ========= Product picker (Step 1 tile grid) =========
+// Each tile maps to either COBRA or a CDH plan-type key.
+// `commuterMode` is a sub-flag that pre-selects transit/parking inside the commuter card.
+const PRODUCT_TILES = [
+  { key:'cobra',   icon:'🛡️', title:'COBRA',        sub:'Continuation coverage & direct billing.', target:'cobra' },
+  { key:'hsa',     icon:'💰', title:'HSA',          sub:'Health Savings Account.',                  target:'cdh', cdh:'hsa' },
+  { key:'hcfsa',   icon:'🏥', title:'Healthcare FSA', sub:'HCFSA — pre-tax medical spending.',     target:'cdh', cdh:'hcfsa' },
+  { key:'lpfsa',   icon:'🦷', title:'Limited Purpose FSA', sub:'LPFSA — HSA-compatible dental/vision.', target:'cdh', cdh:'lpfsa' },
+  { key:'dcfsa',   icon:'👶', title:'Dependent Care FSA', sub:'DCFSA / DCAP — childcare & adult care.', target:'cdh', cdh:'dcfsa' },
+  { key:'hra',     icon:'📋', title:'HRA',           sub:'Health Reimbursement Arrangement.',       target:'cdh', cdh:'hra' },
+  { key:'transit', icon:'🚆', title:'Commuter — Transit', sub:'Pre-tax transit benefit.',           target:'cdh', cdh:'commuter', commuterMode:'transit' },
+  { key:'parking', icon:'🅿️', title:'Commuter — Parking', sub:'Pre-tax parking benefit.',           target:'cdh', cdh:'commuter', commuterMode:'parking' }
+];
+state.tilesPicked = {};         // { tileKey: true }
+state.commuterModes = {};       // { transit:true, parking:true }
+
+function renderProductTiles(){
+  const wrap = document.getElementById('product-tiles');
+  wrap.innerHTML = PRODUCT_TILES.map(t => `
+    <label class="tile ${state.tilesPicked[t.key]?'on':''}" data-key="${t.key}">
+      <input type="checkbox" ${state.tilesPicked[t.key]?'checked':''} onchange="onTileToggle('${t.key}',this.checked)">
+      <div class="tile-icon">${t.icon}</div>
+      <div class="tile-title">${t.title}</div>
+      <div class="tile-sub">${t.sub}</div>
+    </label>`).join('');
+}
+function onTileToggle(key, on){
+  state.tilesPicked[key] = on;
+  const tile = document.querySelector(`.tile[data-key="${key}"]`);
+  if(tile) tile.classList.toggle('on', on);
+  const count = Object.values(state.tilesPicked).filter(Boolean).length;
+  document.getElementById('picker-count-num').textContent = count;
+  const btn = document.getElementById('picker-continue');
+  btn.disabled = count === 0;
+  btn.style.opacity = count ? '1' : '.5';
+  btn.style.cursor = count ? 'pointer' : 'not-allowed';
+}
+function showStep(n){
+  document.getElementById('card-onboarding').style.display = (n === 1) ? '' : 'none';
+  document.getElementById('step-2').style.display          = (n === 2) ? '' : 'none';
+  document.getElementById('footer-bar').style.display      = (n === 2) ? '' : 'none';
+  window.scrollTo({ top:0, behavior:'instant' });
+}
+function continueFromPicker(){
+  // Translate tile picks → existing state model
+  const cobraOn = !!state.tilesPicked.cobra;
+  const cdhKeys = PRODUCT_TILES.filter(t => state.tilesPicked[t.key] && t.target === 'cdh');
+  const cdhOn = cdhKeys.length > 0;
+
+  document.getElementById('ob-cobra').checked = cobraOn;
+  document.getElementById('ob-cdh').checked = cdhOn;
+
+  // Reset CDH selectedTypes and seed from picks
+  state.cdh.selectedTypes = {};
+  state.commuterModes = { transit:false, parking:false };
+  cdhKeys.forEach(t => {
+    if(t.cdh) state.cdh.selectedTypes[t.cdh] = true;
+    if(t.commuterMode) state.commuterModes[t.commuterMode] = true;
+  });
+
+  toggleOnboarding();
+
+  // Pre-check the CDH plan-type checkboxes (inside CDH section) to match tiles
+  Object.keys(state.cdh.selectedTypes).forEach(k => {
+    const cb = document.getElementById('cdh-t-'+k);
+    if(cb && !cb.checked){ cb.checked = true; toggleCdhType(k, true); }
+  });
+
+  // Pre-set commuter transit/parking toggles inside commuter card if present
+  if(state.cdh.selectedTypes.commuter){
+    if(state.commuterModes.transit === false) state.cdh.plans.commuter && (state.cdh.plans.commuter.transit = 'no');
+    if(state.commuterModes.parking === false) state.cdh.plans.commuter && (state.cdh.plans.commuter.parking = 'no');
+  }
+
+  buildWizardSteps();
+  gotoWizardStep(0);
+}
+
+// ========= Page-by-page wizard (Step 2+) =========
+state.wizard = { steps: [], idx: 0 };
+
+function buildWizardSteps(){
+  const steps = ['employer'];
+  if(state.onboarding.cobra) steps.push('cobra');
+  // CDH plan pages — one page per selected plan type, in tile order
+  const cdhKeys = PRODUCT_TILES
+    .filter(t => t.target === 'cdh' && state.tilesPicked[t.key])
+    .map(t => t.cdh)
+    .filter((v,i,a) => a.indexOf(v) === i);   // de-dup (transit+parking share 'commuter')
+  cdhKeys.forEach(k => steps.push('cdh:'+k));
+  if(cdhKeys.length) steps.push('cdh-shared');
+  steps.push('review');
+  state.wizard.steps = steps;
+}
+
+// ========= Friendly review renderer =========
+function fmtVal(v){
+  if(v == null || v === '') return null;
+  if(v === true || v === 'yes') return 'Yes';
+  if(v === false || v === 'no') return 'No';
+  if(Array.isArray(v)) return v.length ? v.join(', ') : null;
+  return String(v);
+}
+function rowHtml(k, v){
+  const display = fmtVal(v);
+  return `<div class="rev-row">
+    <span class="rev-k">${k}</span>
+    <span class="rev-v ${display==null?'empty':''}">${display==null?'— not provided —':escapeHtml(display)}</span>
+  </div>`;
+}
+function revCard(title, stepKey, bodyHtml){
+  const editAttr = stepKey == null ? '' : `onclick="jumpToStep('${stepKey}')"`;
+  const editBtn = stepKey == null ? '' : `<button class="rev-edit" ${editAttr}>✎ Edit</button>`;
+  return `<div class="rev-card">
+    <div class="rev-head"><h3>${title}</h3>${editBtn}</div>
+    <div class="rev-body">${bodyHtml || '<span class="rev-v empty">— nothing entered —</span>'}</div>
+  </div>`;
+}
+function jumpToStep(key){
+  const idx = state.wizard.steps.indexOf(key);
+  if(idx >= 0) gotoWizardStep(idx);
+}
+
+function renderReview(){
+  // Keep the submitter inputs in sync with state (they may have been re-rendered)
+  const nm = document.getElementById('submitter-name');
+  const em = document.getElementById('submitter-email');
+  if(nm) nm.value = state.submitter.name || '';
+  if(em) em.value = state.submitter.email || '';
+  // Errors panel
+  const errs = validate();
+  const errEl = document.getElementById('review-errors');
+  errEl.innerHTML = errs.length
+    ? `<div class="rev-errors"><h4>⚠ ${errs.length} item(s) need attention before submitting:</h4><ul>${errs.map(e=>'<li>'+escapeHtml(e)+'</li>').join('')}</ul></div>`
+    : '';
+
+  const out = [];
+  const sub = buildSubmission();
+  const emp = sub.employer || {};
+  out.push(revCard('Employer Information', 'employer', `<div class="rev-grid">
+    ${rowHtml('Employer / Group Name', emp.name)}
+    ${rowHtml('Helix Group Code', emp.code)}
+    ${rowHtml('Primary Contact', emp.contact)}
+    ${rowHtml('Contact Email', emp.email)}
+    ${rowHtml('Contact Phone', emp.phone)}
+  </div>`));
+
+  // COBRA
+  if(state.onboarding.cobra){
+    const plans = state.plans || [];
+    let body;
+    if(!plans.length) body = '';
+    else {
+      body = plans.map((p, i) => {
+        const rows = [
+          ['Benefit Type', p.benefitType], ['Carrier', p.carrier], ['Plan Name', p.planName],
+          ['Coverage Types', [p.coverage?.cobra?'COBRA':null, p.coverage?.direct?'Direct Billing':null].filter(Boolean).join(', ')],
+          ['Effective Start', p.effectiveStart], ['Group Number', p.groupNumber], ['Billing Due Day', p.billingDay],
+          ['Self-Insured', p.selfInsured], ['Loss of Coverage', p.lossOfCoverage],
+          ['Plan Year', (p.planYearMonth && p.planYearDay) ? p.planYearMonth+'/'+p.planYearDay : null],
+          ['Employee Groups', p.employeeGroups], ['Rate Effective', (p.rateEffectiveStart||'') + (p.rateEffectiveEnd?' – '+p.rateEffectiveEnd:'')],
+          ['Rate Table Type', p.rateTableType], ['Max Children Charged', p.maxChildrenCharged], ['Max Child Age', p.maxChildAge]
+        ];
+        const compRows = (p.composite||[]).filter(r=>r.tier||r.premium).map(r => `<div class="rev-row"><span class="rev-k">${escapeHtml(r.tier||'(tier)')}</span><span class="rev-v">$${escapeHtml(r.premium||'0')}</span></div>`).join('');
+        const memRows = (p.member||[]).filter(r=>r.premium).map(r => `<div class="rev-row"><span class="rev-k">${escapeHtml((r.ageMin||'?')+'–'+(r.ageMax||'?')+' · '+(r.gender||'Any'))}</span><span class="rev-v">$${escapeHtml(r.premium||'0')}</span></div>`).join('');
+        return `<div class="rev-subhead">Plan ${i+1} — ${escapeHtml(p.benefitType||'(type)')} · ${escapeHtml(p.carrier||'(carrier)')}</div>
+          <div class="rev-grid">${rows.map(([k,v]) => rowHtml(k,v)).join('')}</div>
+          ${compRows ? `<div class="rev-subhead">Composite Rates</div><div class="rev-grid">${compRows}</div>` : ''}
+          ${memRows  ? `<div class="rev-subhead">Member-Level Rates</div><div class="rev-grid">${memRows}</div>` : ''}`;
+      }).join('');
+    }
+    out.push(revCard(`COBRA — ${plans.length} plan${plans.length===1?'':'s'}`, 'cobra', body));
+  }
+
+  // CDH plans
+  PRODUCT_TILES.forEach(t => {
+    if(t.target !== 'cdh' || !state.tilesPicked[t.key]) return;
+    // skip duplicates (transit+parking both → commuter)
+    const seenAttr = '_revRendered_'+t.cdh;
+    if(state[seenAttr]) return; state[seenAttr] = true;
+    const key = t.cdh;
+    const meta = CDH_PLAN_TYPES.find(x => x.key === key);
+    const def = CDH_FIELDS[key];
+    if(!def || !meta) return;
+    const bag = state.cdh.plans[key] || {};
+    let fieldDefs = [];
+    if(def.common)   fieldDefs = fieldDefs.concat(CDH_FIELDS._common);
+    if(def.coverage) fieldDefs = fieldDefs.concat(CDH_FIELDS._coverage);
+    if(def.funding)  fieldDefs = fieldDefs.concat(CDH_FIELDS._funding);
+    if(def.extra)    fieldDefs = fieldDefs.concat(def.extra);
+    const rows = fieldDefs.map(f => rowHtml(f.l, bag[f.k])).join('');
+    out.push(revCard(meta.label, 'cdh:'+key, `<div class="rev-grid">${rows}</div>`));
+  });
+  // Reset seen flags
+  PRODUCT_TILES.forEach(t => { if(t.cdh) delete state['_revRendered_'+t.cdh]; });
+
+  // CDH shared
+  if(Object.values(state.cdh.selectedTypes).some(Boolean)){
+    const shared = state.cdh.shared || {};
+    const groups = [];
+    let cur = null;
+    CDH_SHARED_FIELDS.forEach(f => {
+      if(f.section){ cur = { section:f.section, rows:[] }; groups.push(cur); }
+      else if(cur) cur.rows.push(rowHtml(f.l, shared[f.k]));
+    });
+    const body = groups.map(g => `<div class="rev-subhead">${escapeHtml(g.section)}</div><div class="rev-grid">${g.rows.join('')}</div>`).join('');
+    out.push(revCard('CDH Shared Settings', 'cdh-shared', body));
+  }
+
+  document.getElementById('review-summary').innerHTML = out.join('');
+}
+
+function wizStepLabel(s){
+  if(s === 'employer') return 'Employer Information';
+  if(s === 'cobra') return 'COBRA — Benefit Plan & Rates';
+  if(s === 'cdh-shared') return 'CDH — Shared Settings (Invoicing, Payroll, Reimbursement)';
+  if(s.startsWith('cdh:')){
+    const k = s.slice(4);
+    const t = CDH_PLAN_TYPES.find(x => x.key === k);
+    return t ? t.label : k;
+  }
+  return s;
+}
+
+function gotoWizardStep(i){
+  const steps = state.wizard.steps;
+  if(i < 0){ showStep(1); return; }
+  if(i >= steps.length){ i = steps.length - 1; }
+  state.wizard.idx = i;
+  showStep(2);
+  const cur = steps[i];
+
+  // Show ONLY the current page
+  document.getElementById('card-employer').style.display = (cur === 'employer') ? '' : 'none';
+  document.getElementById('section-cobra').style.display = (cur === 'cobra') ? '' : 'none';
+  const inCdh = cur.startsWith('cdh');
+  document.getElementById('section-cdh').style.display = inCdh ? '' : 'none';
+  document.getElementById('section-review').style.display = (cur === 'review') ? '' : 'none';
+  if(cur === 'review') renderReview();
+  // The Step-1 picker re-render lived inside section-cdh; hide it now (we already picked)
+  const cdhPicker = document.getElementById('card-cdh-picker');
+  if(cdhPicker) cdhPicker.style.display = 'none';
+  // Toggle individual CDH plan cards
+  document.querySelectorAll('#cdh-plans > .card').forEach(c => {
+    c.style.display = (cur === 'cdh:'+c.dataset.key) ? '' : 'none';
+  });
+  document.getElementById('card-cdh-shared').style.display = (cur === 'cdh-shared') ? '' : 'none';
+
+  // Header
+  document.getElementById('wiz-title').textContent = `Step ${i+2} of ${steps.length+1} — ${wizStepLabel(cur)}`;
+  const picks = [];
+  if(state.onboarding.cobra) picks.push('COBRA');
+  const cdhLabels = Object.keys(state.cdh.selectedTypes)
+    .filter(k => state.cdh.selectedTypes[k])
+    .map(k => (CDH_PLAN_TYPES.find(x => x.key === k) || {label:k}).label);
+  picks.push(...cdhLabels);
+  document.getElementById('step2-summary').textContent = 'Onboarding: ' + (picks.join(' · ') || '—');
+
+  // Buttons
+  document.getElementById('wiz-back').textContent = i === 0 ? '← Change selection' : '← Back';
+  const nextBtn = document.getElementById('wiz-next');
+  if(cur === 'review'){
+    nextBtn.textContent = '✓ Submit';
+    nextBtn.className = 'btn bok';
+  } else if(i === steps.length - 2){
+    nextBtn.textContent = 'Review →';
+    nextBtn.className = 'btn bp';
+  } else {
+    nextBtn.textContent = 'Next →';
+    nextBtn.className = 'btn bp';
+  }
+
+  // Progress dots
+  const dots = document.getElementById('wiz-dots');
+  dots.innerHTML = steps.map((s, idx) => {
+    const cls = idx < i ? 'wdot done' : idx === i ? 'wdot cur' : 'wdot';
+    return `<span class="${cls}" title="${wizStepLabel(s)}"></span>`;
+  }).join('');
+
+  window.scrollTo({ top:0, behavior:'instant' });
+}
+
+function wizNext(){
+  const steps = state.wizard.steps;
+  const cur = steps[state.wizard.idx];
+  if(cur === 'review'){ submitForm(); return; }
+  gotoWizardStep(state.wizard.idx + 1);
+}
+function wizBack(){
+  if(state.wizard.idx === 0) showStep(1);
+  else gotoWizardStep(state.wizard.idx - 1);
+}
+
+// ========= Init =========
+state.carriers = ['Aetna','Anthem BCBS','Cigna','UnitedHealthcare','Humana',
+                  'Delta Dental','VSP','MetLife','Kaiser Permanente'];
+renderCarriers();
+renderProductTiles();
+updateFooter();
+showStep(1);
+showDraftBanner();
+</script>
+
+</body>
+</html>

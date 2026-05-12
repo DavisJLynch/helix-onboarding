@@ -1,0 +1,11 @@
+node_modules/
+helix.db
+helix.db-journal
+helix.db-wal
+helix.db-shm
+submissions/
+outbox/
+.env
+*.log
+.DS_Store
+Thumbs.db
