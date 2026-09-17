@@ -219,7 +219,8 @@ pre.json{background:#0d1b4b;color:#a5d8ff;padding:14px;border-radius:8px;font-si
       <span id="hdr-user-name"></span>
       <a href="/admin" id="hdr-admin-link" style="display:none">Dashboard</a>
     </div>
-    <button class="btn bw" onclick="saveDraft()" title="Save your progress to your account — pick up where you left off later">Save Progress</button>
+    <button class="btn bw" id="share-btn" onclick="openShare()" style="display:none" title="Let a coworker continue this onboarding">Share</button>
+    <button class="btn bw" onclick="saveDraft()" title="Save your progress — you or a coworker can pick it up later">Save Progress</button>
     <button class="btn bw" onclick="signOut()">Sign Out</button>
   </div>
 </header>
@@ -360,6 +361,7 @@ pre.json{background:#0d1b4b;color:#a5d8ff;padding:14px;border-radius:8px;font-si
 <div class="footer" id="footer-bar">
   <div class="summary">
     <b id="plan-count">0</b> COBRA plan(s) &middot; <b id="cdh-count">0</b> CDH plan(s) &middot; Carriers: <b id="carr-count">0</b>
+    <span id="draft-status" style="display:none;margin-left:10px;padding-left:10px;border-left:1px solid var(--border);font-size:.78rem"></span>
   </div>
   <div class="actions">
     <button class="btn bs" onclick="saveDraft()">Save Draft</button>
@@ -400,6 +402,35 @@ pre.json{background:#0d1b4b;color:#a5d8ff;padding:14px;border-radius:8px;font-si
       <button class="btn bs" onclick="closeModal('modal-review')">Close</button>
       <button class="btn bs" onclick="downloadJson()">Download JSON</button>
       <button class="btn bok" onclick="submitForm()">Submit</button>
+    </div>
+  </div>
+</div>
+
+<div class="mask" id="modal-share">
+  <div class="modal">
+    <h3>Share this onboarding</h3>
+    <div class="body">
+      <p class="hint" style="margin-bottom:6px" id="share-owner"></p>
+      <p class="hint" style="margin-bottom:14px">
+        Invite a coworker and they can sign in with their own account and continue this exact form
+        from wherever it was left. Everything they save comes back to you too.
+      </p>
+      <div class="fr c1">
+        <div class="f">
+          <label>Coworker's Email</label>
+          <div style="display:flex;gap:8px">
+            <input type="email" id="share-email" placeholder="coworker@yourcompany.com"
+              onkeydown="if(event.key==='Enter'){event.preventDefault();addShare()}">
+            <button class="btn bp" onclick="addShare()">Invite</button>
+          </div>
+          <div class="hint">If they don't have an account yet, they'll see this onboarding as soon as they create one with that email.</div>
+        </div>
+      </div>
+      <div class="slbl" style="margin-top:18px">Who can continue this</div>
+      <div class="carr-list" id="share-list"></div>
+    </div>
+    <div class="footer-m">
+      <button class="btn bp" onclick="closeModal('modal-share')">Done</button>
     </div>
   </div>
 </div>
@@ -821,36 +852,70 @@ function val(id){ const el = document.getElementById(id); return el ? el.value.t
 // ========= Draft / Submit =========
 const STORAGE_KEY = 'helix_cobra_benefitplan_draft';
 
-async function saveDraft(){
+async function saveDraft(opts){
   state.employer = collectEmployer();
+  const title = (state.employer && state.employer.name) || '';
+  const body = { title, draft:{ savedAt:new Date().toISOString(), state, planSeq } };
   try{
-    const r = await fetch('/api/draft', {
-      method:'PUT',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ savedAt:new Date().toISOString(), state, planSeq })
-    });
+    let r;
+    if(state.draftId){
+      body.version = state.draftVersion;
+      r = await fetch('/api/drafts/'+state.draftId, {
+        method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)
+      });
+    } else {
+      r = await fetch('/api/drafts', {
+        method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)
+      });
+    }
     if(r.status === 401){ toast('Session expired — please sign in again','err'); setTimeout(goToLogin, 900); return; }
+    if(r.status === 409){
+      const data = await r.json();
+      showConflict(data.message);
+      return;
+    }
     if(!r.ok) throw new Error('HTTP '+r.status);
-    toast('Progress saved to your account — you can close this tab and finish later.');
+    const data = await r.json();
+    const meta = data.draft || data.meta;
+    state.draftId = meta.id;
+    state.draftVersion = meta.version;
+    renderDraftStatus(meta);
+    if(!(opts && opts.quiet)) toast('Progress saved. Anyone you invite can pick it up from here.');
   }catch(e){
     console.error(e);
     toast('Could not save progress','err');
   }
 }
-async function discardDraft(){
-  try { await fetch('/api/draft', { method:'DELETE' }); } catch(e){}
+
+// Someone else saved while we had this open — don't clobber their work.
+function showConflict(message){
+  if(confirm(message + '\n\nReload their version? Your unsaved changes on this screen will be lost.')){
+    location.reload();
+  } else {
+    toast('Not saved — reload before making more changes','err');
+  }
+}
+
+async function discardDraft(id){
+  const target = id || state.draftId;
+  if(!target) return;
+  try { await fetch('/api/drafts/'+target, { method:'DELETE' }); } catch(e){}
   const b = document.getElementById('draft-banner'); if(b) b.remove();
+  if(target === state.draftId){ state.draftId = null; state.draftVersion = null; }
   toast('Saved progress discarded.');
 }
-async function loadDraft(){
+async function loadDraft(draftId){
   try{
-    const r = await fetch('/api/draft');
+    const id = draftId || state.draftId;
+    if(!id){ toast('No saved progress found','err'); return; }
+    const r = await fetch('/api/drafts/'+id);
     if(r.status === 401){ goToLogin(); return; }
     if(r.status === 404){ toast('No saved progress found','err'); return; }
     if(!r.ok) throw new Error('HTTP '+r.status);
     const payload = await r.json();
     const data = payload.draft || {};
-    data.savedAt = data.savedAt || payload.updatedAt;
+    data.savedAt = data.savedAt || payload.meta.updatedAt;
+    const meta = payload.meta;
     // Restore state, falling back gracefully for older drafts
     state = Object.assign({ plans:[], carriers:[], employer:{},
       onboarding:{cobra:false,cdh:false},
@@ -921,9 +986,14 @@ async function loadDraft(){
     state.plans.forEach(p=>{ togglePlanConditionals(p.id); refreshBadge(p.id); });
     updateFooter();
 
+    // Track which shared draft we're editing and which version we started from
+    state.draftId = meta.id;
+    state.draftVersion = meta.version;
+    renderDraftStatus(meta);
+
     const banner = document.getElementById('draft-banner'); if(banner) banner.remove();
-    const when = data.savedAt ? new Date(data.savedAt).toLocaleString() : 'earlier';
-    toast('Progress restored from ' + when);
+    const who = meta.lastEditedByYou ? 'you' : (meta.lastEditedBy || 'a coworker');
+    toast('Picked up where ' + who + ' left off (' + new Date(meta.updatedAt).toLocaleString() + ')');
   }catch(e){
     console.error(e);
     toast('Error loading saved progress','err');
@@ -956,30 +1026,118 @@ async function initAccount(){
   return true;
 }
 
-// Banner shown on init if this account has saved progress
+// Banner listing every onboarding this person can continue — their own
+// and any a coworker invited them into.
 async function showDraftBanner(){
-  let payload = null;
+  let drafts = [];
   try {
-    const r = await fetch('/api/draft');
+    const r = await fetch('/api/drafts');
     if(!r.ok) return;
-    payload = await r.json();
+    drafts = (await r.json()).drafts || [];
   } catch(e){ return; }
-  const savedAt = (payload.draft && payload.draft.savedAt) || payload.updatedAt;
-  const savedWhen = savedAt ? ' from ' + new Date(savedAt).toLocaleString() : '';
+  if(!drafts.length) return;
+
+  const rows = drafts.map(d => {
+    const who = d.isOwner ? 'You started this' : 'Started by ' + escapeHtml(d.owner.name || d.owner.email);
+    const edited = d.lastEditedByYou ? 'you' : escapeHtml(d.lastEditedBy || 'a coworker');
+    const shared = d.sharedWith.length
+      ? ` · shared with ${d.sharedWith.length} coworker${d.sharedWith.length===1?'':'s'}` : '';
+    return `<div style="display:flex;align-items:center;gap:12px;padding:9px 0;border-top:1px solid #fde68a">
+      <div style="flex:1;min-width:0">
+        <b>${escapeHtml(d.title || 'Untitled onboarding')}</b>
+        <div style="font-size:.76rem;color:#78350f;margin-top:2px">
+          ${who}${shared} · last saved by ${edited} on ${escapeHtml(new Date(d.updatedAt).toLocaleString())}
+        </div>
+      </div>
+      <button class="btn bp" onclick="loadDraft(${d.id})" style="padding:7px 14px;font-size:.82rem">Continue</button>
+      ${d.isOwner ? `<button class="btn bs" onclick="discardDraft(${d.id})" style="padding:7px 12px;font-size:.82rem">Discard</button>` : ''}
+    </div>`;
+  }).join('');
+
   const div = document.createElement('div');
   div.id = 'draft-banner';
-  div.style.cssText = 'background:#fffbeb;border:1px solid #fbbf24;border-radius:8px;padding:12px 18px;margin:18px auto;max-width:960px;display:flex;align-items:center;gap:14px;font-size:.88rem;color:#92400e';
+  div.style.cssText = 'background:#fffbeb;border:1px solid #fbbf24;border-radius:8px;padding:12px 18px;margin:18px auto;max-width:960px;font-size:.88rem;color:#92400e';
   div.innerHTML = `
-    <span style="font-size:1.3rem">💾</span>
-    <div style="flex:1">
-      <b>You have saved progress${escapeHtml(savedWhen)}.</b>
-      <div style="font-size:.78rem;color:#78350f;margin-top:2px">Resume where you left off, or start over with a fresh form.</div>
+    <div style="display:flex;align-items:center;gap:10px;padding-bottom:4px">
+      <span style="font-size:1.2rem">📋</span>
+      <b style="flex:1">Onboarding${drafts.length===1?'':'s'} you can pick up</b>
+      <button class="btn bs" onclick="this.closest('#draft-banner').remove()" style="padding:5px 12px;font-size:.78rem">Start a new one</button>
     </div>
-    <button class="btn bp" onclick="loadDraft()" style="padding:7px 14px;font-size:.82rem">Resume</button>
-    <button class="btn bs" onclick="discardDraft()" style="padding:7px 14px;font-size:.82rem">Discard</button>
-  `;
+    ${rows}`;
   const main = document.querySelector('main.main');
   main.insertBefore(div, main.firstChild);
+}
+
+// ========= Sharing =========
+function renderDraftStatus(meta){
+  const el = document.getElementById('draft-status');
+  if(!el) return;
+  if(!meta){ el.style.display = 'none'; return; }
+  el.style.display = '';
+  const editor = meta.lastEditedByYou ? 'you' : (meta.lastEditedBy || 'a coworker');
+  const count = meta.sharedWith.length;
+  el.innerHTML = `Saved by ${escapeHtml(editor)} · ${escapeHtml(new Date(meta.updatedAt).toLocaleString())}`
+    + (count ? ` · shared with ${count}` : '');
+  document.getElementById('share-btn').style.display = '';
+}
+
+async function openShare(){
+  if(!state.draftId){
+    toast('Save your progress first, then you can invite a coworker','err');
+    return;
+  }
+  const r = await fetch('/api/drafts/'+state.draftId);
+  if(!r.ok){ toast('Could not load sharing info','err'); return; }
+  const { meta } = await r.json();
+  renderShareList(meta);
+  openModal('modal-share');
+}
+
+function renderShareList(meta){
+  document.getElementById('share-owner').textContent =
+    (meta.isOwner ? 'You' : (meta.owner.name || meta.owner.email)) + ' started this onboarding';
+  const list = document.getElementById('share-list');
+  if(!meta.sharedWith.length){
+    list.innerHTML = '<span class="hint">No one else yet. Add a coworker below and they can continue this form from their own login.</span>';
+  } else {
+    list.innerHTML = meta.sharedWith.map(e => `
+      <span class="carr-chip">${escapeHtml(e)}
+        <button onclick="unshare('${escapeAttr(e)}')" title="Remove access">&times;</button>
+      </span>`).join('');
+  }
+}
+
+async function addShare(){
+  const inp = document.getElementById('share-email');
+  const email = inp.value.trim();
+  if(!email) return;
+  const r = await fetch('/api/drafts/'+state.draftId+'/share', {
+    method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email })
+  });
+  const data = await r.json();
+  if(!r.ok){ toast(data.error || 'Could not share','err'); return; }
+  inp.value = '';
+  const meta = await refreshShareMeta();
+  toast(email + ' can now continue this onboarding');
+  if(meta) renderShareList(meta);
+}
+
+async function unshare(email){
+  const r = await fetch('/api/drafts/'+state.draftId+'/share', {
+    method:'DELETE', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email })
+  });
+  if(!r.ok){ toast('Could not remove access','err'); return; }
+  const meta = await refreshShareMeta();
+  if(meta) renderShareList(meta);
+  toast('Removed ' + email);
+}
+
+async function refreshShareMeta(){
+  const r = await fetch('/api/drafts/'+state.draftId);
+  if(!r.ok) return null;
+  const { meta } = await r.json();
+  renderDraftStatus(meta);
+  return meta;
 }
 function setVal(id,v){ const el = document.getElementById(id); if(el && v!=null) el.value = v; }
 function validate(){
@@ -1118,6 +1276,7 @@ async function submitForm(){
   }
   const sub = buildSubmission();
   sub.submittedAt = new Date().toISOString();
+  sub._draftId = state.draftId;   // so the server can clear the shared draft
   try {
     const r = await fetch('/api/submissions', {
       method:'POST',
@@ -1248,6 +1407,9 @@ const CDH_SHARED_FIELDS = [
 // CDH state
 state.cdh = { selectedTypes:{}, shared:{}, plans:{} };
 state.submitter = { name:'', email:'' };
+// Which shared draft we're editing, and the version we opened
+state.draftId = null;
+state.draftVersion = null;
 // onboarding toggles
 state.onboarding = { cobra:false, cdh:false };
 

@@ -13,7 +13,15 @@
 // - POST   /api/auth/login        → sign in (HttpOnly session cookie)
 // - POST   /api/auth/logout       → sign out
 // - GET    /api/auth/me           → current signed-in user
-// - GET/PUT/DELETE /api/draft     → that user's saved in-progress form
+//
+// Shared drafts (a coworker can pick up where someone else stopped):
+// - GET    /api/drafts            → drafts you own or were invited into
+// - POST   /api/drafts            → start one
+// - GET    /api/drafts/:id        → open one
+// - PUT    /api/drafts/:id        → save (version-checked so edits aren't clobbered)
+// - DELETE /api/drafts/:id        → discard (owner only)
+// - POST   /api/drafts/:id/share  → invite a coworker by email
+// - DELETE /api/drafts/:id/share  → revoke
 //
 // Storage: SQLite database at ./helix.db (Node 24 built-in `node:sqlite`).
 // Existing JSON files in ./submissions/ are auto-imported on first start.
@@ -219,13 +227,52 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
 
-  CREATE TABLE IF NOT EXISTS drafts (
-    user_id    INTEGER PRIMARY KEY,
-    payload    TEXT NOT NULL,
-    updated_at TEXT NOT NULL,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-  );
 `);
+
+// Drafts started life as one-per-user. They are now shared documents a
+// coworker can be invited into, so move any v1 rows across.
+const draftCols = db.prepare(`PRAGMA table_info(drafts)`).all();
+if (draftCols.length && !draftCols.some(c => c.name === 'id')) {
+  db.exec(`ALTER TABLE drafts RENAME TO drafts_v1`);
+}
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS drafts (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    title      TEXT,
+    owner_id   INTEGER NOT NULL,
+    payload    TEXT NOT NULL,
+    version    INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    updated_by INTEGER,
+    FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE
+  );
+  CREATE INDEX IF NOT EXISTS idx_drafts_owner ON drafts(owner_id);
+
+  -- Invited collaborators. Stored by email so you can invite a coworker
+  -- who has not created an account yet.
+  CREATE TABLE IF NOT EXISTS draft_shares (
+    draft_id INTEGER NOT NULL,
+    email    TEXT NOT NULL,
+    added_by INTEGER,
+    added_at TEXT NOT NULL,
+    PRIMARY KEY (draft_id, email),
+    FOREIGN KEY (draft_id) REFERENCES drafts(id) ON DELETE CASCADE
+  );
+  CREATE INDEX IF NOT EXISTS idx_shares_email ON draft_shares(email);
+`);
+
+if (db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='drafts_v1'`).get()) {
+  const now = new Date().toISOString();
+  for (const old of db.prepare(`SELECT * FROM drafts_v1`).all()) {
+    db.prepare(`INSERT INTO drafts (title, owner_id, payload, version, created_at, updated_at, updated_by)
+                VALUES (?, ?, ?, 1, ?, ?, ?)`)
+      .run(null, old.user_id, old.payload, old.updated_at || now, old.updated_at || now, old.user_id);
+  }
+  db.exec(`DROP TABLE drafts_v1`);
+  console.log('Migrated per-user drafts to shared drafts');
+}
 
 // Link submissions to the account that sent them (added after initial release)
 try { db.exec(`ALTER TABLE submissions ADD COLUMN user_id INTEGER`); } catch (e) { /* already exists */ }
@@ -279,12 +326,70 @@ const stmtGetSession = db.prepare(`
 `);
 const stmtDeleteSession = db.prepare(`DELETE FROM sessions WHERE token = ?`);
 const stmtPurgeSessions = db.prepare(`DELETE FROM sessions WHERE expires_at < ?`);
-const stmtGetDraft    = db.prepare(`SELECT payload, updated_at FROM drafts WHERE user_id = ?`);
-const stmtSaveDraft   = db.prepare(`
-  INSERT INTO drafts (user_id, payload, updated_at) VALUES (?, ?, ?)
-  ON CONFLICT(user_id) DO UPDATE SET payload = excluded.payload, updated_at = excluded.updated_at
+const stmtDraftById = db.prepare(`
+  SELECT d.*, o.email AS owner_email, o.name AS owner_name, e.name AS editor_name, e.email AS editor_email
+  FROM drafts d
+  JOIN users o ON o.id = d.owner_id
+  LEFT JOIN users e ON e.id = d.updated_by
+  WHERE d.id = ?
 `);
-const stmtDeleteDraft = db.prepare(`DELETE FROM drafts WHERE user_id = ?`);
+const stmtCreateDraft = db.prepare(`
+  INSERT INTO drafts (title, owner_id, payload, version, created_at, updated_at, updated_by)
+  VALUES (?, ?, ?, 1, ?, ?, ?)
+`);
+const stmtUpdateDraft = db.prepare(`
+  UPDATE drafts SET payload = ?, title = ?, version = version + 1, updated_at = ?, updated_by = ?
+  WHERE id = ?
+`);
+const stmtDeleteDraftById = db.prepare(`DELETE FROM drafts WHERE id = ?`);
+const stmtShareEmails = db.prepare(`SELECT email FROM draft_shares WHERE draft_id = ? ORDER BY added_at`);
+const stmtAddShare = db.prepare(`
+  INSERT INTO draft_shares (draft_id, email, added_by, added_at) VALUES (?, ?, ?, ?)
+  ON CONFLICT(draft_id, email) DO NOTHING
+`);
+const stmtRemoveShare = db.prepare(`DELETE FROM draft_shares WHERE draft_id = ? AND email = ?`);
+const stmtIsShared = db.prepare(`SELECT 1 AS ok FROM draft_shares WHERE draft_id = ? AND email = ?`);
+// Everything this user may open: their own, anything shared to their address
+const stmtDraftsForUser = db.prepare(`
+  SELECT d.*, o.email AS owner_email, o.name AS owner_name, e.name AS editor_name, e.email AS editor_email
+  FROM drafts d
+  JOIN users o ON o.id = d.owner_id
+  LEFT JOIN users e ON e.id = d.updated_by
+  WHERE d.owner_id = ?
+     OR d.id IN (SELECT draft_id FROM draft_shares WHERE email = ?)
+  ORDER BY d.updated_at DESC
+`);
+const stmtAllDrafts = db.prepare(`
+  SELECT d.*, o.email AS owner_email, o.name AS owner_name, e.name AS editor_name, e.email AS editor_email
+  FROM drafts d
+  JOIN users o ON o.id = d.owner_id
+  LEFT JOIN users e ON e.id = d.updated_by
+  ORDER BY d.updated_at DESC
+`);
+
+// A draft is reachable by its owner, anyone it was shared with, or Helix staff.
+function draftAccess(user, draftId) {
+  const d = stmtDraftById.get(Number(draftId));
+  if (!d) return null;
+  if (d.owner_id === user.id) return { draft: d, role: 'owner' };
+  if (stmtIsShared.get(d.id, user.email.toLowerCase())) return { draft: d, role: 'editor' };
+  if (user.isAdmin) return { draft: d, role: 'helix' };
+  return null;
+}
+function draftSummary(d, user) {
+  return {
+    id: d.id,
+    title: d.title || 'Untitled onboarding',
+    version: d.version,
+    owner: { name: d.owner_name, email: d.owner_email },
+    isOwner: d.owner_id === user.id,
+    lastEditedBy: d.editor_name || d.editor_email || d.owner_name,
+    lastEditedByYou: d.updated_by === user.id,
+    updatedAt: d.updated_at,
+    createdAt: d.created_at,
+    sharedWith: stmtShareEmails.all(d.id).map(r => r.email)
+  };
+}
 
 function hashPassword(password) {
   const salt = crypto.randomBytes(16).toString('hex');
@@ -555,30 +660,84 @@ const server = http.createServer(async (req, res) => {
     return sendJson(res, 200, { user: publicUser(u) });
   }
 
-  // ============== Draft routes (per signed-in user) ==============
-  if (pathname === '/api/draft') {
+  // ============== Draft routes (shared documents) ==============
+  if (pathname === '/api/drafts' || pathname.startsWith('/api/drafts/')) {
     const u = currentUser(req);
     if (!u) return sendJson(res, 401, { error: 'Not signed in' });
 
-    if (req.method === 'GET') {
-      const row = stmtGetDraft.get(u.id);
-      if (!row) return sendJson(res, 404, { error: 'No saved progress' });
-      return sendJson(res, 200, { updatedAt: row.updated_at, draft: JSON.parse(row.payload) });
+    // GET /api/drafts — everything this person can open
+    if (req.method === 'GET' && pathname === '/api/drafts') {
+      const rows = u.isAdmin ? stmtAllDrafts.all() : stmtDraftsForUser.all(u.id, u.email.toLowerCase());
+      return sendJson(res, 200, { drafts: rows.map(d => draftSummary(d, u)) });
     }
-    if (req.method === 'PUT' || req.method === 'POST') {
-      try {
+
+    // POST /api/drafts — start a new one
+    if (req.method === 'POST' && pathname === '/api/drafts') {
+      let body; try { body = JSON.parse(await readBody(req)); } catch { return sendJson(res, 400, { error: 'Invalid JSON' }); }
+      const now = new Date().toISOString();
+      const info = stmtCreateDraft.run(String(body.title || '').slice(0, 200) || null,
+        u.id, JSON.stringify(body.draft || {}), now, now, u.id);
+      const d = stmtDraftById.get(Number(info.lastInsertRowid));
+      return sendJson(res, 201, { ok: true, draft: draftSummary(d, u) });
+    }
+
+    const dm = pathname.match(/^\/api\/drafts\/(\d+)(\/share)?$/);
+    if (dm) {
+      const access = draftAccess(u, dm[1]);
+      if (!access) return sendJson(res, 404, { error: 'Not found, or not shared with you' });
+      const { draft, role } = access;
+
+      // Share management — owner (or Helix) decides who else gets in
+      if (dm[2] === '/share') {
+        if (role === 'editor') return sendJson(res, 403, { error: 'Only the person who started this can invite others.' });
+        if (req.method === 'POST') {
+          let body; try { body = JSON.parse(await readBody(req)); } catch { return sendJson(res, 400, { error: 'Invalid JSON' }); }
+          const email = String(body.email || '').trim().toLowerCase();
+          if (!isValidEmail(email)) return sendJson(res, 400, { error: 'Please enter a valid email address.' });
+          if (email === draft.owner_email.toLowerCase()) return sendJson(res, 400, { error: 'That person already owns this onboarding.' });
+          stmtAddShare.run(draft.id, email, u.id, new Date().toISOString());
+          console.log(`[draft ${draft.id}] shared with ${email} by ${u.email}`);
+          return sendJson(res, 200, { ok: true, sharedWith: stmtShareEmails.all(draft.id).map(r => r.email) });
+        }
+        if (req.method === 'DELETE') {
+          let body; try { body = JSON.parse(await readBody(req)); } catch { return sendJson(res, 400, { error: 'Invalid JSON' }); }
+          stmtRemoveShare.run(draft.id, String(body.email || '').trim().toLowerCase());
+          return sendJson(res, 200, { ok: true, sharedWith: stmtShareEmails.all(draft.id).map(r => r.email) });
+        }
+      }
+
+      if (req.method === 'GET') {
+        return sendJson(res, 200, {
+          meta: draftSummary(draft, u),
+          draft: JSON.parse(draft.payload)
+        });
+      }
+
+      if (req.method === 'PUT') {
         let body; try { body = JSON.parse(await readBody(req)); } catch { return sendJson(res, 400, { error: 'Invalid JSON' }); }
+        // Two people editing the same onboarding must not silently overwrite
+        // each other — the client sends the version it started from.
+        if (body.version != null && Number(body.version) !== draft.version) {
+          return sendJson(res, 409, {
+            error: 'conflict',
+            message: `${draft.editor_name || draft.editor_email || 'Someone else'} saved changes to this onboarding after you opened it.`,
+            meta: draftSummary(draft, u)
+          });
+        }
         const now = new Date().toISOString();
-        stmtSaveDraft.run(u.id, JSON.stringify(body), now);
-        return sendJson(res, 200, { ok: true, updatedAt: now });
-      } catch (e) {
-        return sendJson(res, 500, { error: e.message });
+        stmtUpdateDraft.run(JSON.stringify(body.draft || {}),
+          String(body.title || draft.title || '').slice(0, 200) || null, now, u.id, draft.id);
+        const fresh = stmtDraftById.get(draft.id);
+        return sendJson(res, 200, { ok: true, meta: draftSummary(fresh, u) });
+      }
+
+      if (req.method === 'DELETE') {
+        if (role === 'editor') return sendJson(res, 403, { error: 'Only the person who started this can delete it.' });
+        stmtDeleteDraftById.run(draft.id);
+        return sendJson(res, 200, { ok: true });
       }
     }
-    if (req.method === 'DELETE') {
-      stmtDeleteDraft.run(u.id);
-      return sendJson(res, 200, { ok: true });
-    }
+    return sendJson(res, 404, { error: 'Unknown draft route' });
   }
 
   // Everything below this line requires a signed-in user
@@ -612,8 +771,10 @@ const server = http.createServer(async (req, res) => {
 
       // Insert into DB
       insertSubmission(record);
-      // The form is submitted — their saved progress is no longer needed
-      stmtDeleteDraft.run(req.user.id);
+      // The form is submitted — the working draft is no longer needed
+      if (body._draftId && draftAccess(req.user, body._draftId)) {
+        stmtDeleteDraftById.run(Number(body._draftId));
+      }
 
       console.log(`[${ts.toISOString()}] Stored submission ${id} (user ${req.user.email})`);
 
