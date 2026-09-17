@@ -17,6 +17,10 @@ body{font-family:'Segoe UI',Arial,sans-serif;background:var(--bg);color:var(--te
   color:#fff;padding:10px 30px;display:flex;align-items:center;gap:18px;
   box-shadow:0 3px 12px rgba(0,0,0,.25);position:sticky;top:0;z-index:50}
 .hdr-logo{height:44px;width:auto;object-fit:contain}
+.hdr-user{display:flex;align-items:center;gap:10px;font-size:.78rem;color:rgba(255,255,255,.85);
+  padding-right:12px;margin-right:2px;border-right:1px solid rgba(255,255,255,.22)}
+.hdr-user a{color:#fff;text-decoration:underline;text-underline-offset:2px;opacity:.9}
+.hdr-user a:hover{opacity:1}
 .hdr-divider{width:1px;height:36px;background:rgba(255,255,255,.25);flex-shrink:0}
 .hdr-text{display:flex;flex-direction:column;gap:1px}
 .hdr-text h1{font-size:.95rem;font-weight:600;letter-spacing:.01em}
@@ -211,7 +215,12 @@ pre.json{background:#0d1b4b;color:#a5d8ff;padding:14px;border-radius:8px;font-si
   </div>
   <div class="spacer"></div>
   <div class="actions">
-    <button class="btn bw" onclick="saveDraft()" title="Save your progress to this browser — pick up where you left off later">Save Progress</button>
+    <div class="hdr-user" id="hdr-user" style="display:none">
+      <span id="hdr-user-name"></span>
+      <a href="/admin" id="hdr-admin-link" style="display:none">Dashboard</a>
+    </div>
+    <button class="btn bw" onclick="saveDraft()" title="Save your progress to your account — pick up where you left off later">Save Progress</button>
+    <button class="btn bw" onclick="signOut()">Sign Out</button>
   </div>
 </header>
 
@@ -330,8 +339,8 @@ pre.json{background:#0d1b4b;color:#a5d8ff;padding:14px;border-radius:8px;font-si
         </div>
         <div class="f">
           <label>Your Email Address <span class="req">*</span></label>
-          <input type="email" id="submitter-email" placeholder="you@yourcompany.com" oninput="state.submitter.email=this.value">
-          <div class="hint">A confirmation copy of this submission will be emailed to you and to Helix (service@helixbenefits.net).</div>
+          <input type="email" id="submitter-email" readonly style="background:var(--sec);cursor:not-allowed">
+          <div class="hint">Taken from your account. A confirmation copy goes to you and to Helix (service@helixbenefits.net).</div>
         </div>
       </div>
     </div>
@@ -812,31 +821,36 @@ function val(id){ const el = document.getElementById(id); return el ? el.value.t
 // ========= Draft / Submit =========
 const STORAGE_KEY = 'helix_cobra_benefitplan_draft';
 
-function saveDraft(){
+async function saveDraft(){
   state.employer = collectEmployer();
   try{
-    const blob = {
-      savedAt: new Date().toISOString(),
-      state,
-      planSeq
-    };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(blob));
-    toast('Progress saved — you can close this tab and come back later.');
-  }catch(e){ toast('Could not save progress','err'); }
+    const r = await fetch('/api/draft', {
+      method:'PUT',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ savedAt:new Date().toISOString(), state, planSeq })
+    });
+    if(r.status === 401){ toast('Session expired — please sign in again','err'); setTimeout(goToLogin, 900); return; }
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    toast('Progress saved to your account — you can close this tab and finish later.');
+  }catch(e){
+    console.error(e);
+    toast('Could not save progress','err');
+  }
 }
-function hasSavedDraft(){
-  try { return !!localStorage.getItem(STORAGE_KEY); } catch(e){ return false; }
-}
-function discardDraft(){
-  try { localStorage.removeItem(STORAGE_KEY); } catch(e){}
+async function discardDraft(){
+  try { await fetch('/api/draft', { method:'DELETE' }); } catch(e){}
   const b = document.getElementById('draft-banner'); if(b) b.remove();
   toast('Saved progress discarded.');
 }
-function loadDraft(){
+async function loadDraft(){
   try{
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if(!raw){ toast('No saved progress found','err'); return; }
-    const data = JSON.parse(raw);
+    const r = await fetch('/api/draft');
+    if(r.status === 401){ goToLogin(); return; }
+    if(r.status === 404){ toast('No saved progress found','err'); return; }
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const payload = await r.json();
+    const data = payload.draft || {};
+    data.savedAt = data.savedAt || payload.updatedAt;
     // Restore state, falling back gracefully for older drafts
     state = Object.assign({ plans:[], carriers:[], employer:{},
       onboarding:{cobra:false,cdh:false},
@@ -916,14 +930,42 @@ function loadDraft(){
   }
 }
 
-// Banner shown on init if a draft exists
-function showDraftBanner(){
-  if(!hasSavedDraft()) return;
-  let savedWhen = '';
+// ========= Account =========
+let currentUser = null;
+
+function goToLogin(){
+  location.href = '/login.html?next=' + encodeURIComponent(location.pathname);
+}
+async function signOut(){
+  try { await fetch('/api/auth/logout', { method:'POST' }); } catch(e){}
+  location.href = '/login.html';
+}
+async function initAccount(){
+  let r;
+  try { r = await fetch('/api/auth/me'); }
+  catch(e){ toast('Cannot reach the server','err'); return false; }
+  if(!r.ok){ goToLogin(); return false; }
+  const data = await r.json();
+  currentUser = data.user;
+  document.getElementById('hdr-user').style.display = '';
+  document.getElementById('hdr-user-name').textContent = currentUser.name || currentUser.email;
+  if(currentUser.isAdmin) document.getElementById('hdr-admin-link').style.display = '';
+  // The account owns the confirmation email, so seed it and lock the address
+  state.submitter.name = state.submitter.name || currentUser.name || '';
+  state.submitter.email = currentUser.email;
+  return true;
+}
+
+// Banner shown on init if this account has saved progress
+async function showDraftBanner(){
+  let payload = null;
   try {
-    const data = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    if(data && data.savedAt) savedWhen = ' from ' + new Date(data.savedAt).toLocaleString();
-  } catch(e){}
+    const r = await fetch('/api/draft');
+    if(!r.ok) return;
+    payload = await r.json();
+  } catch(e){ return; }
+  const savedAt = (payload.draft && payload.draft.savedAt) || payload.updatedAt;
+  const savedWhen = savedAt ? ' from ' + new Date(savedAt).toLocaleString() : '';
   const div = document.createElement('div');
   div.id = 'draft-banner';
   div.style.cssText = 'background:#fffbeb;border:1px solid #fbbf24;border-radius:8px;padding:12px 18px;margin:18px auto;max-width:960px;display:flex;align-items:center;gap:14px;font-size:.88rem;color:#92400e';
@@ -1082,11 +1124,11 @@ async function submitForm(){
       headers:{'Content-Type':'application/json'},
       body: JSON.stringify(sub)
     });
+    if(r.status === 401){ toast('Session expired — please sign in again','err'); setTimeout(goToLogin, 900); return; }
     if(!r.ok) throw new Error('HTTP '+r.status);
     const data = await r.json();
     toast('Submitted → '+data.id);
     closeModal('modal-review');
-    try { localStorage.removeItem('helix-cobra-draft'); } catch(e){}
   } catch(e) {
     console.error('Submit failed, falling back to download:', e);
     toast('Server unreachable — JSON downloaded','err');
@@ -1495,6 +1537,10 @@ function jumpToStep(key){
 
 function renderReview(){
   // Keep the submitter inputs in sync with state (they may have been re-rendered)
+  if(currentUser){
+    state.submitter.email = currentUser.email;
+    if(!state.submitter.name) state.submitter.name = currentUser.name || '';
+  }
   const nm = document.getElementById('submitter-name');
   const em = document.getElementById('submitter-email');
   if(nm) nm.value = state.submitter.name || '';
@@ -1670,7 +1716,7 @@ renderCarriers();
 renderProductTiles();
 updateFooter();
 showStep(1);
-showDraftBanner();
+initAccount().then(ok => { if(ok) showDraftBanner(); });
 </script>
 
 </body>

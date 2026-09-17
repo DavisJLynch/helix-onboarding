@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sign In – Helix Benefit Solutions Onboarding</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --primary:#2557b7;--primary-dark:#1a3f8a;--primary-light:#dce9fb;
+  --navy:#0d1b4b;--border:#d1d9e6;--text:#1e2a3a;--muted:#6b7c93;
+  --success:#16a34a;--error:#dc2626;--bg:#f0f4fa;--sec:#eef3fb;
+}
+body{font-family:'Segoe UI',Arial,sans-serif;background:var(--bg);color:var(--text);
+  min-height:100vh;display:flex;flex-direction:column}
+.hdr{background:linear-gradient(135deg,var(--navy) 0%,var(--primary-dark) 55%,var(--primary) 100%);
+  color:#fff;padding:10px 30px;display:flex;align-items:center;gap:18px;
+  box-shadow:0 3px 12px rgba(0,0,0,.25)}
+.hdr-logo{height:44px;width:auto;object-fit:contain}
+.hdr-divider{width:1px;height:36px;background:rgba(255,255,255,.25);flex-shrink:0}
+.hdr-text h1{font-size:.95rem;font-weight:600;letter-spacing:.01em}
+.hdr-text span{font-size:.73rem;opacity:.68}
+.wrap{flex:1;display:flex;align-items:flex-start;justify-content:center;padding:48px 20px 60px}
+.card{background:#fff;border-radius:14px;box-shadow:0 6px 28px rgba(13,27,75,.12);
+  width:100%;max-width:440px;overflow:hidden}
+.card-top{padding:26px 32px 10px;text-align:center}
+.card-top img{height:52px;width:auto;object-fit:contain;margin-bottom:14px}
+.card-top h2{font-size:1.32rem;color:var(--primary-dark);font-weight:700;margin-bottom:6px}
+.card-top p{font-size:.86rem;color:var(--muted);line-height:1.5}
+.tabs{display:flex;gap:0;margin:20px 32px 0;border-bottom:1.5px solid var(--border)}
+.tab{flex:1;padding:10px 6px;text-align:center;font-size:.88rem;font-weight:600;color:var(--muted);
+  cursor:pointer;border-bottom:2.5px solid transparent;margin-bottom:-1.5px;transition:all .15s;
+  background:none;border-top:none;border-left:none;border-right:none;font-family:inherit}
+.tab:hover{color:var(--primary)}
+.tab.on{color:var(--primary);border-bottom-color:var(--primary)}
+form{padding:22px 32px 30px;display:flex;flex-direction:column;gap:14px}
+.f{display:flex;flex-direction:column;gap:5px}
+.f label{font-size:.82rem;font-weight:600}
+.f label .req{color:var(--error)}
+.f input{border:1.5px solid var(--border);border-radius:7px;padding:10px 12px;
+  font-size:.9rem;font-family:inherit;color:var(--text);background:#fff;
+  transition:border-color .15s,box-shadow .15s;width:100%}
+.f input:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px rgba(37,87,183,.12)}
+.hint{font-size:.74rem;color:var(--muted);line-height:1.4}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;border-radius:8px;
+  padding:12px 18px;font-size:.92rem;font-weight:600;cursor:pointer;
+  font-family:inherit;transition:all .15s;border:none;width:100%}
+.bp{background:var(--primary);color:#fff}
+.bp:hover{background:var(--primary-dark)}
+.bp:disabled{opacity:.55;cursor:not-allowed}
+.msg{border-radius:8px;padding:11px 14px;font-size:.84rem;line-height:1.45;display:none}
+.msg.show{display:block}
+.msg.err{background:#fef2f2;border:1px solid #fecaca;color:#991b1b}
+.msg.ok{background:#f0fdf4;border:1px solid #bbf7d0;color:#166534}
+.foot{text-align:center;font-size:.78rem;color:var(--muted);padding:0 32px 26px;line-height:1.5}
+.note{background:var(--sec);border:1px solid var(--border);border-radius:8px;
+  padding:10px 14px;font-size:.78rem;color:var(--muted);line-height:1.45;margin:0 32px 4px}
+@media(max-width:520px){
+  .hdr{padding:12px 14px}.wrap{padding:26px 12px 40px}
+  .card-top,form,.foot{padding-left:20px;padding-right:20px}
+  .tabs,.note{margin-left:20px;margin-right:20px}
+}
+</style>
+</head>
+<body>
+
+<header class="hdr">
+  <img src="helix-logo-white.png" alt="Helix Benefit Solutions" class="hdr-logo">
+  <div class="hdr-divider"></div>
+  <div class="hdr-text">
+    <h1>Helix Benefit Solutions Onboarding</h1>
+    <span>Benefit Plan &amp; Rate Setup</span>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="card">
+    <div class="card-top">
+      <img src="helix-logo-color.png" alt="Helix Benefit Solutions">
+      <h2 id="head-title">Welcome back</h2>
+      <p id="head-sub">Sign in to start a new onboarding or pick up where you left off.</p>
+    </div>
+
+    <div class="tabs">
+      <button class="tab on" id="tab-login" onclick="setMode('login')">Sign In</button>
+      <button class="tab" id="tab-register" onclick="setMode('register')">Create Account</button>
+    </div>
+
+    <form id="auth-form" onsubmit="submitAuth(event)">
+      <div class="msg" id="msg"></div>
+
+      <div class="f" id="row-name" style="display:none">
+        <label for="name">Your Name <span class="req">*</span></label>
+        <input type="text" id="name" autocomplete="name" placeholder="Jane Smith">
+      </div>
+
+      <div class="f" id="row-company" style="display:none">
+        <label for="company">Company / Group</label>
+        <input type="text" id="company" autocomplete="organization" placeholder="Acme Industries">
+      </div>
+
+      <div class="f">
+        <label for="email">Email Address <span class="req">*</span></label>
+        <input type="email" id="email" autocomplete="username" required placeholder="you@yourcompany.com">
+      </div>
+
+      <div class="f">
+        <label for="password">Password <span class="req">*</span></label>
+        <input type="password" id="password" autocomplete="current-password" required placeholder="••••••••">
+        <div class="hint" id="pw-hint" style="display:none">Must be at least 8 characters.</div>
+      </div>
+
+      <button type="submit" class="btn bp" id="submit-btn">Sign In</button>
+    </form>
+
+    <div class="note" id="admin-note">
+      Helix staff signing in with a <b>@helixbenefits.net</b> address also get access to the submissions dashboard.
+    </div>
+
+    <div class="foot">
+      Your saved progress is tied to your account, so you can close this window and finish later from any device.
+    </div>
+  </div>
+</div>
+
+<script>
+let mode = 'login';
+const params = new URLSearchParams(location.search);
+const nextUrl = params.get('next') || '/benefit-plan-setup.html';
+
+function setMode(m){
+  mode = m;
+  const isReg = m === 'register';
+  document.getElementById('tab-login').classList.toggle('on', !isReg);
+  document.getElementById('tab-register').classList.toggle('on', isReg);
+  document.getElementById('row-name').style.display = isReg ? '' : 'none';
+  document.getElementById('row-company').style.display = isReg ? '' : 'none';
+  document.getElementById('pw-hint').style.display = isReg ? '' : 'none';
+  document.getElementById('submit-btn').textContent = isReg ? 'Create Account' : 'Sign In';
+  document.getElementById('head-title').textContent = isReg ? 'Create your account' : 'Welcome back';
+  document.getElementById('head-sub').textContent = isReg
+    ? 'Set up a login so your progress is saved and you can return to it anytime.'
+    : 'Sign in to start a new onboarding or pick up where you left off.';
+  document.getElementById('password').setAttribute('autocomplete', isReg ? 'new-password' : 'current-password');
+  hideMsg();
+}
+function showMsg(text, kind){
+  const el = document.getElementById('msg');
+  el.textContent = text;
+  el.className = 'msg show ' + (kind || 'err');
+}
+function hideMsg(){ document.getElementById('msg').className = 'msg'; }
+
+async function submitAuth(e){
+  e.preventDefault();
+  hideMsg();
+  const btn = document.getElementById('submit-btn');
+  const payload = {
+    email: document.getElementById('email').value.trim(),
+    password: document.getElementById('password').value
+  };
+  if(mode === 'register'){
+    payload.name = document.getElementById('name').value.trim();
+    payload.company = document.getElementById('company').value.trim();
+    if(!payload.name){ showMsg('Please enter your name.'); return; }
+    if(payload.password.length < 8){ showMsg('Password must be at least 8 characters.'); return; }
+  }
+  btn.disabled = true;
+  btn.textContent = mode === 'register' ? 'Creating account…' : 'Signing in…';
+  try {
+    const r = await fetch('/api/auth/' + mode, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await r.json();
+    if(!r.ok) throw new Error(data.error || 'Something went wrong.');
+    showMsg('Signed in. Taking you to the form…', 'ok');
+    location.href = nextUrl;
+  } catch(err){
+    showMsg(err.message);
+    btn.disabled = false;
+    btn.textContent = mode === 'register' ? 'Create Account' : 'Sign In';
+  }
+}
+
+// Already signed in? Skip the login screen.
+fetch('/api/auth/me').then(r => { if(r.ok) location.replace(nextUrl); }).catch(()=>{});
+</script>
+</body>
+</html>

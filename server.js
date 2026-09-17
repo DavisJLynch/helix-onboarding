@@ -6,7 +6,14 @@
 // - DELETE /api/submissions/:id   → remove a submission
 // - GET    /api/plans             → flat list of every plan across submissions
 // - GET    /api/export.csv        → CSV export of submission metadata
-// - GET    /admin                 → submissions viewer UI
+// - GET    /admin                 → submissions viewer UI (Helix staff only)
+//
+// Accounts:
+// - POST   /api/auth/register     → create an account + sign in
+// - POST   /api/auth/login        → sign in (HttpOnly session cookie)
+// - POST   /api/auth/logout       → sign out
+// - GET    /api/auth/me           → current signed-in user
+// - GET/PUT/DELETE /api/draft     → that user's saved in-progress form
 //
 // Storage: SQLite database at ./helix.db (Node 24 built-in `node:sqlite`).
 // Existing JSON files in ./submissions/ are auto-imported on first start.
@@ -191,7 +198,37 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_plans_carrier ON plans(carrier);
   CREATE INDEX IF NOT EXISTS idx_plans_kind    ON plans(kind);
+
+  CREATE TABLE IF NOT EXISTS users (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    email         TEXT NOT NULL UNIQUE,
+    name          TEXT,
+    company       TEXT,
+    password_hash TEXT NOT NULL,
+    is_admin      INTEGER NOT NULL DEFAULT 0,
+    created_at    TEXT NOT NULL,
+    last_login_at TEXT
+  );
+
+  CREATE TABLE IF NOT EXISTS sessions (
+    token      TEXT PRIMARY KEY,
+    user_id    INTEGER NOT NULL,
+    created_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  );
+  CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
+
+  CREATE TABLE IF NOT EXISTS drafts (
+    user_id    INTEGER PRIMARY KEY,
+    payload    TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  );
 `);
+
+// Link submissions to the account that sent them (added after initial release)
+try { db.exec(`ALTER TABLE submissions ADD COLUMN user_id INTEGER`); } catch (e) { /* already exists */ }
 
 const stmtInsertSubmission = db.prepare(`
   INSERT INTO submissions
@@ -208,7 +245,7 @@ const stmtInsertPlan = db.prepare(`
 const stmtListSubmissions = db.prepare(`
   SELECT id, employer_name, employer_ein, onboarding_cobra, onboarding_cdh,
          cobra_plan_count, cdh_plan_count, submitted_at, received_at,
-         length(payload) AS size
+         user_id, length(payload) AS size
   FROM submissions
   ORDER BY received_at DESC
 `);
@@ -222,6 +259,96 @@ const stmtListAllPlans = db.prepare(`
   JOIN submissions s ON s.id = p.submission_id
   ORDER BY s.received_at DESC, p.kind, p.plan_index
 `);
+
+// ============== Auth: statements & helpers ==============
+const SESSION_COOKIE = 'helix_session';
+const SESSION_DAYS = 30;
+
+const stmtCreateUser = db.prepare(`
+  INSERT INTO users (email, name, company, password_hash, is_admin, created_at)
+  VALUES (?, ?, ?, ?, ?, ?)
+`);
+const stmtUserByEmail = db.prepare(`SELECT * FROM users WHERE email = ?`);
+const stmtUserById    = db.prepare(`SELECT * FROM users WHERE id = ?`);
+const stmtTouchLogin  = db.prepare(`UPDATE users SET last_login_at = ? WHERE id = ?`);
+const stmtInsertSession = db.prepare(`INSERT INTO sessions (token, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)`);
+const stmtGetSession = db.prepare(`
+  SELECT s.token, s.expires_at, u.id AS user_id, u.email, u.name, u.company, u.is_admin
+  FROM sessions s JOIN users u ON u.id = s.user_id
+  WHERE s.token = ?
+`);
+const stmtDeleteSession = db.prepare(`DELETE FROM sessions WHERE token = ?`);
+const stmtPurgeSessions = db.prepare(`DELETE FROM sessions WHERE expires_at < ?`);
+const stmtGetDraft    = db.prepare(`SELECT payload, updated_at FROM drafts WHERE user_id = ?`);
+const stmtSaveDraft   = db.prepare(`
+  INSERT INTO drafts (user_id, payload, updated_at) VALUES (?, ?, ?)
+  ON CONFLICT(user_id) DO UPDATE SET payload = excluded.payload, updated_at = excluded.updated_at
+`);
+const stmtDeleteDraft = db.prepare(`DELETE FROM drafts WHERE user_id = ?`);
+
+function hashPassword(password) {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = crypto.scryptSync(String(password), salt, 64).toString('hex');
+  return `${salt}:${hash}`;
+}
+function verifyPassword(password, stored) {
+  const [salt, hash] = String(stored || '').split(':');
+  if (!salt || !hash) return false;
+  const known = Buffer.from(hash, 'hex');
+  const test = crypto.scryptSync(String(password), salt, 64);
+  if (known.length !== test.length) return false;
+  return crypto.timingSafeEqual(known, test);
+}
+function parseCookies(req) {
+  const out = {};
+  const raw = req.headers.cookie;
+  if (!raw) return out;
+  for (const part of raw.split(';')) {
+    const i = part.indexOf('=');
+    if (i > -1) out[part.slice(0, i).trim()] = decodeURIComponent(part.slice(i + 1).trim());
+  }
+  return out;
+}
+function createSession(userId) {
+  const token = crypto.randomBytes(32).toString('hex');
+  const now = new Date();
+  const expires = new Date(now.getTime() + SESSION_DAYS * 86400000);
+  stmtInsertSession.run(token, userId, now.toISOString(), expires.toISOString());
+  stmtPurgeSessions.run(now.toISOString());
+  return { token, expires };
+}
+function sessionCookie(token, expires) {
+  const parts = [
+    `${SESSION_COOKIE}=${token}`,
+    'Path=/',
+    'HttpOnly',
+    'SameSite=Lax',
+    `Expires=${expires.toUTCString()}`
+  ];
+  if (process.env.COOKIE_SECURE === 'true') parts.push('Secure');
+  return parts.join('; ');
+}
+function clearCookie() {
+  return `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Expires=Thu, 01 Jan 1970 00:00:00 GMT`;
+}
+function currentUser(req) {
+  const token = parseCookies(req)[SESSION_COOKIE];
+  if (!token) return null;
+  const row = stmtGetSession.get(token);
+  if (!row) return null;
+  if (new Date(row.expires_at) < new Date()) { stmtDeleteSession.run(token); return null; }
+  return { id: row.user_id, email: row.email, name: row.name, company: row.company, isAdmin: !!row.is_admin, token };
+}
+function publicUser(u) {
+  return u && { id: u.id, email: u.email, name: u.name, company: u.company, isAdmin: u.isAdmin };
+}
+function isValidEmail(e) {
+  return typeof e === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.trim()) && e.length <= 254;
+}
+// Anyone with a Helix address administers submissions; everyone else is a client user.
+function adminEmail(email) {
+  return /@helixbenefits\.net$/i.test(String(email || '').trim());
+}
 
 function insertSubmission(record) {
   const id = record._id;
@@ -257,6 +384,9 @@ function insertSubmission(record) {
       p.effectiveStart || null, null,
       JSON.stringify(p)
     ));
+    if (record._userId) {
+      db.prepare(`UPDATE submissions SET user_id = ? WHERE id = ?`).run(record._userId, id);
+    }
     db.prepare('COMMIT').run();
   } catch (e) {
     db.prepare('ROLLBACK').run();
@@ -334,8 +464,11 @@ function csvEscape(v) {
 }
 
 // ============== Routes ==============
-function listMeta() {
-  return stmtListSubmissions.all().map(r => ({
+function listMeta(user) {
+  // Helix staff see every submission; a client account only sees its own.
+  const rows = stmtListSubmissions.all();
+  const scoped = (user && user.isAdmin) ? rows : rows.filter(r => r.user_id === user.id);
+  return scoped.map(r => ({
     id: r.id,
     employerName: r.employer_name || '',
     employerEIN:  r.employer_ein || '',
@@ -358,6 +491,103 @@ const server = http.createServer(async (req, res) => {
   const parsed = url.parse(req.url, true);
   const pathname = parsed.pathname;
 
+  // ============== Auth routes ==============
+
+  // POST /api/auth/register  { email, password, name, company }
+  if (req.method === 'POST' && pathname === '/api/auth/register') {
+    try {
+      let body; try { body = JSON.parse(await readBody(req)); } catch { return sendJson(res, 400, { error: 'Invalid JSON' }); }
+      const email = String(body.email || '').trim().toLowerCase();
+      const password = String(body.password || '');
+      const name = String(body.name || '').trim();
+      if (!isValidEmail(email)) return sendJson(res, 400, { error: 'Please enter a valid email address.' });
+      if (password.length < 8) return sendJson(res, 400, { error: 'Password must be at least 8 characters.' });
+      if (!name) return sendJson(res, 400, { error: 'Please enter your name.' });
+      if (stmtUserByEmail.get(email)) return sendJson(res, 409, { error: 'An account with that email already exists. Try signing in instead.' });
+
+      const info = stmtCreateUser.run(email, name, String(body.company || '').trim(), hashPassword(password),
+        adminEmail(email) ? 1 : 0, new Date().toISOString());
+      const userId = Number(info.lastInsertRowid);
+      const { token, expires } = createSession(userId);
+      res.setHeader('Set-Cookie', sessionCookie(token, expires));
+      console.log(`[auth] registered ${email}${adminEmail(email) ? ' (admin)' : ''}`);
+      return sendJson(res, 201, { ok: true, user: publicUser(currentUser({ headers: { cookie: `${SESSION_COOKIE}=${token}` } })) });
+    } catch (e) {
+      console.error('register error:', e);
+      return sendJson(res, 500, { error: 'Could not create the account.' });
+    }
+  }
+
+  // POST /api/auth/login  { email, password }
+  if (req.method === 'POST' && pathname === '/api/auth/login') {
+    try {
+      let body; try { body = JSON.parse(await readBody(req)); } catch { return sendJson(res, 400, { error: 'Invalid JSON' }); }
+      const email = String(body.email || '').trim().toLowerCase();
+      const password = String(body.password || '');
+      const user = stmtUserByEmail.get(email);
+      // Same message either way so we don't reveal which emails have accounts
+      if (!user || !verifyPassword(password, user.password_hash)) {
+        return sendJson(res, 401, { error: 'Email or password is incorrect.' });
+      }
+      stmtTouchLogin.run(new Date().toISOString(), user.id);
+      const { token, expires } = createSession(user.id);
+      res.setHeader('Set-Cookie', sessionCookie(token, expires));
+      console.log(`[auth] login ${email}`);
+      return sendJson(res, 200, { ok: true, user: { id: user.id, email: user.email, name: user.name, company: user.company, isAdmin: !!user.is_admin } });
+    } catch (e) {
+      console.error('login error:', e);
+      return sendJson(res, 500, { error: 'Could not sign in.' });
+    }
+  }
+
+  // POST /api/auth/logout
+  if (req.method === 'POST' && pathname === '/api/auth/logout') {
+    const u = currentUser(req);
+    if (u) stmtDeleteSession.run(u.token);
+    res.setHeader('Set-Cookie', clearCookie());
+    return sendJson(res, 200, { ok: true });
+  }
+
+  // GET /api/auth/me
+  if (req.method === 'GET' && pathname === '/api/auth/me') {
+    const u = currentUser(req);
+    if (!u) return sendJson(res, 401, { error: 'Not signed in' });
+    return sendJson(res, 200, { user: publicUser(u) });
+  }
+
+  // ============== Draft routes (per signed-in user) ==============
+  if (pathname === '/api/draft') {
+    const u = currentUser(req);
+    if (!u) return sendJson(res, 401, { error: 'Not signed in' });
+
+    if (req.method === 'GET') {
+      const row = stmtGetDraft.get(u.id);
+      if (!row) return sendJson(res, 404, { error: 'No saved progress' });
+      return sendJson(res, 200, { updatedAt: row.updated_at, draft: JSON.parse(row.payload) });
+    }
+    if (req.method === 'PUT' || req.method === 'POST') {
+      try {
+        let body; try { body = JSON.parse(await readBody(req)); } catch { return sendJson(res, 400, { error: 'Invalid JSON' }); }
+        const now = new Date().toISOString();
+        stmtSaveDraft.run(u.id, JSON.stringify(body), now);
+        return sendJson(res, 200, { ok: true, updatedAt: now });
+      } catch (e) {
+        return sendJson(res, 500, { error: e.message });
+      }
+    }
+    if (req.method === 'DELETE') {
+      stmtDeleteDraft.run(u.id);
+      return sendJson(res, 200, { ok: true });
+    }
+  }
+
+  // Everything below this line requires a signed-in user
+  if (pathname.startsWith('/api/')) {
+    const u = currentUser(req);
+    if (!u) return sendJson(res, 401, { error: 'Not signed in' });
+    req.user = u;
+  }
+
   // POST /api/submissions
   if (req.method === 'POST' && pathname === '/api/submissions') {
     try {
@@ -369,7 +599,12 @@ const server = http.createServer(async (req, res) => {
       const employerSlug = ((body.employer && body.employer.name) || 'unknown')
         .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'unknown';
       const id = `${iso}__${employerSlug}__${rand}`;
-      const record = { _id: id, _receivedAt: ts.toISOString(), ...body };
+      const record = { _id: id, _receivedAt: ts.toISOString(), _userId: req.user.id, ...body };
+      // Trust the signed-in account over whatever the browser posted
+      record.submitter = Object.assign({}, record.submitter, {
+        email: req.user.email,
+        name: (record.submitter && record.submitter.name) || req.user.name
+      });
 
       // Write JSON backup (handy for offline review / git diff)
       const file = path.join(SUBMISSIONS_DIR, id + '.json');
@@ -377,8 +612,10 @@ const server = http.createServer(async (req, res) => {
 
       // Insert into DB
       insertSubmission(record);
+      // The form is submitted — their saved progress is no longer needed
+      stmtDeleteDraft.run(req.user.id);
 
-      console.log(`[${ts.toISOString()}] Stored submission ${id}`);
+      console.log(`[${ts.toISOString()}] Stored submission ${id} (user ${req.user.email})`);
 
       // Fire-and-forget emails; don't block the response
       let emailResults = null;
@@ -397,19 +634,20 @@ const server = http.createServer(async (req, res) => {
 
   // GET /api/submissions
   if (req.method === 'GET' && pathname === '/api/submissions') {
-    try { return sendJson(res, 200, listMeta()); }
+    try { return sendJson(res, 200, listMeta(req.user)); }
     catch (e) { return sendJson(res, 500, { error: e.message }); }
   }
 
   // GET /api/plans
   if (req.method === 'GET' && pathname === '/api/plans') {
+    if (!req.user.isAdmin) return sendJson(res, 403, { error: 'Helix staff only' });
     try { return sendJson(res, 200, stmtListAllPlans.all()); }
     catch (e) { return sendJson(res, 500, { error: e.message }); }
   }
 
   // GET /api/export.csv
   if (req.method === 'GET' && pathname === '/api/export.csv') {
-    const rows = listMeta();
+    const rows = listMeta(req.user);
     const header = ['id','employerName','employerEIN','cobra','cdh','cobraPlans','cdhPlans','submittedAt','receivedAt'];
     const lines = [header.join(',')];
     for (const r of rows) {
@@ -423,6 +661,11 @@ const server = http.createServer(async (req, res) => {
   const m = pathname.match(/^\/api\/submissions\/([A-Za-z0-9_\-:.]+)$/);
   if (m) {
     const id = m[1];
+    // A client account may only touch its own submissions
+    const owner = db.prepare(`SELECT user_id FROM submissions WHERE id = ?`).get(id);
+    if (owner && !req.user.isAdmin && owner.user_id !== req.user.id) {
+      return sendJson(res, 403, { error: 'Not your submission' });
+    }
     if (req.method === 'GET') {
       const row = stmtGetSubmission.get(id);
       if (!row) return sendJson(res, 404, { error: 'Not found' });
@@ -438,8 +681,25 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
-  // /admin → admin.html
-  if (pathname === '/admin') { req.url = '/admin.html'; return serveStatic(req, res); }
+  // Pages that require a signed-in user — bounce to the login screen
+  const GATED_PAGES = ['/', '/index.html', '/benefit-plan-setup.html', '/admin', '/admin.html'];
+  if (GATED_PAGES.includes(pathname) && !currentUser(req)) {
+    const next = encodeURIComponent(pathname === '/' ? '/benefit-plan-setup.html' : pathname);
+    res.writeHead(302, { Location: `/login.html?next=${next}` });
+    return res.end();
+  }
+
+  // /admin → admin.html (Helix staff only)
+  if (pathname === '/admin' || pathname === '/admin.html') {
+    const u = currentUser(req);
+    if (!u.isAdmin) {
+      res.writeHead(403, { 'Content-Type': 'text/html; charset=utf-8' });
+      return res.end('<h2 style="font-family:Segoe UI,Arial,sans-serif;padding:40px">403 — Helix staff only.</h2>'
+        + '<p style="font-family:Segoe UI,Arial,sans-serif;padding:0 40px"><a href="/benefit-plan-setup.html">Back to the onboarding form</a></p>');
+    }
+    req.url = '/admin.html';
+    return serveStatic(req, res);
+  }
 
   return serveStatic(req, res);
 });

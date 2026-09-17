@@ -73,7 +73,9 @@
   <img src="helix-logo-white.png" alt="Helix" onerror="this.style.display='none'">
   <h1>Submissions</h1>
   <span class="count" id="count">—</span>
+  <a href="/benefit-plan-setup.html" style="color:#fff;font-size:13px;opacity:.85;text-decoration:underline">New Onboarding</a>
   <button class="reload" onclick="load()">Reload</button>
+  <button class="reload" onclick="signOut()">Sign Out</button>
 </header>
 <main>
   <div id="out"><div class="empty">Loading…</div></div>
@@ -92,6 +94,11 @@
 <script>
 function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
 function fmt(iso){ if(!iso) return '—'; try { return new Date(iso).toLocaleString(); } catch(e){ return iso; } }
+
+async function signOut(){
+  try { await fetch('/api/auth/logout', { method:'POST' }); } catch(e){}
+  location.href = '/login.html';
+}
 
 async function load(){
   const out = document.getElementById('out');
