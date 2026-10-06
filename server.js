@@ -63,99 +63,159 @@ if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
   console.log(`       To send real email, set SMTP_HOST, SMTP_USER, SMTP_PASS, SMTP_PORT, SMTP_SECURE`);
 }
 
-async function sendMail({ to, subject, text, html }) {
+// Builds a complete MIME message (attachments included) without sending it.
+const outboxTransport = nodemailer.createTransport({ streamTransport: true, buffer: true, newline: 'windows' });
+
+async function sendMail(msg) {
+  const full = Object.assign({ from: MAIL_FROM }, msg);
   if (mailTransport) {
     try {
-      const info = await mailTransport.sendMail({ from: MAIL_FROM, to, subject, text, html });
-      console.log(`  → email sent to ${to} (messageId=${info.messageId})`);
-      return { sent: true, to, messageId: info.messageId };
+      const info = await mailTransport.sendMail(full);
+      console.log(`  → email sent to ${msg.to} (messageId=${info.messageId})`);
+      return { sent: true, to: msg.to, messageId: info.messageId };
     } catch (e) {
-      console.error(`  ✗ email FAILED to ${to}: ${e.message}`);
-      return { sent: false, to, error: e.message };
+      console.error(`  ✗ email FAILED to ${msg.to}: ${e.message}`);
+      return { sent: false, to: msg.to, error: e.message };
     }
   }
-  // Outbox fallback: write a readable .eml file
-  const safe = String(to).replace(/[^a-z0-9@._-]/gi,'_');
+  // No SMTP configured: write the exact message to ./outbox/ (double-click opens in Outlook)
+  const safe = String(msg.to).replace(/[^a-z0-9@._-]/gi, '_');
   const file = path.join(OUTBOX_DIR, `${Date.now()}__${safe}.eml`);
-  const eml = [
-    `From: ${MAIL_FROM}`,
-    `To: ${to}`,
-    `Subject: ${subject}`,
-    `Date: ${new Date().toUTCString()}`,
-    `MIME-Version: 1.0`,
-    `Content-Type: text/html; charset=utf-8`,
-    ``,
-    html || text || ''
-  ].join('\r\n');
-  fs.writeFileSync(file, eml, 'utf8');
-  console.log(`  → email queued to outbox: ${path.basename(file)} (to=${to})`);
-  return { sent: false, queued: true, file, to };
+  const info = await outboxTransport.sendMail(full);
+  fs.writeFileSync(file, info.message);
+  console.log(`  → email queued to outbox: ${path.basename(file)} (to=${msg.to})`);
+  return { sent: false, queued: true, file, to: msg.to };
 }
 
 function escapeHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
 
+// `responses` arrives from the browser as [{title, groups:[{heading, rows:[[label, value]]}]}].
+// Normalise it so a malformed payload can't break or bloat the emails.
+function cleanResponses(raw) {
+  if (!Array.isArray(raw)) return [];
+  const str = v => (v == null ? null : String(v).slice(0, 2000));
+  return raw.slice(0, 50).map(s => ({
+    title: str(s && s.title) || 'Section',
+    groups: (Array.isArray(s && s.groups) ? s.groups : []).slice(0, 100).map(g => ({
+      heading: str(g && g.heading),
+      rows: (Array.isArray(g && g.rows) ? g.rows : []).slice(0, 300)
+        .filter(r => Array.isArray(r))
+        .map(r => [str(r[0]) || '', str(r[1])])
+    }))
+  }));
+}
+
+// Email clients (Outlook especially) need tables and inline styles.
+function responsesHtml(sections) {
+  if (!sections.length) return '<p style="color:#6b7c93">No answers were included with this submission.</p>';
+  return sections.map(sec => {
+    const groups = sec.groups.map(g => {
+      const answered = g.rows.filter(([, v]) => v != null && v !== '');
+      if (!answered.length) return '';
+      const head = g.heading
+        ? `<tr><td colspan="2" style="padding:12px 0 4px;font-size:12px;font-weight:700;color:#2557b7;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid #d1d9e6">${escapeHtml(g.heading)}</td></tr>`
+        : '';
+      const rows = answered.map(([k, v]) =>
+        `<tr><td style="padding:6px 12px 6px 0;color:#6b7c93;font-size:13px;width:45%;vertical-align:top;border-bottom:1px solid #eef3fb">${escapeHtml(k)}</td>`
+        + `<td style="padding:6px 0;color:#1e2a3a;font-size:13px;vertical-align:top;border-bottom:1px solid #eef3fb">${escapeHtml(v)}</td></tr>`
+      ).join('');
+      return head + rows;
+    }).join('');
+    return `<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin:18px 0 6px;border-collapse:collapse">
+      <tr><td colspan="2" style="background:#1a3f8a;color:#ffffff;padding:9px 12px;font-size:14px;font-weight:600;border-radius:4px">${escapeHtml(sec.title)}</td></tr>
+      ${groups || '<tr><td colspan="2" style="padding:8px 0;color:#6b7c93;font-size:13px">Nothing entered.</td></tr>'}
+    </table>`;
+  }).join('');
+}
+
+function responsesText(sections) {
+  return sections.map(sec => {
+    const lines = [`== ${sec.title} ==`];
+    sec.groups.forEach(g => {
+      const answered = g.rows.filter(([, v]) => v != null && v !== '');
+      if (!answered.length) return;
+      if (g.heading) lines.push(`-- ${g.heading}`);
+      answered.forEach(([k, v]) => lines.push(`${k}: ${v}`));
+    });
+    return lines.join('\n');
+  }).join('\n\n');
+}
+
+// One row per answer — opens straight into Excel for whoever keys the setup.
+function responsesCsv(sections) {
+  const q = v => {
+    const s = v == null ? '' : String(v);
+    return /[",\r\n]/.test(s) || /^[=+\-@]/.test(s) ? `"${s.replace(/"/g, '""').replace(/^([=+\-@])/, "'$1")}"` : s;
+  };
+  const lines = ['Section,Group,Question,Answer'];
+  sections.forEach(sec => sec.groups.forEach(g => g.rows.forEach(([k, v]) =>
+    lines.push([sec.title, g.heading || '', k, v == null ? '' : v].map(q).join(','))
+  )));
+  return '﻿' + lines.join('\r\n');   // BOM so Excel reads UTF-8 correctly
+}
+
+function emailShell(title, inner) {
+  return `<div style="font-family:Segoe UI,Arial,sans-serif;color:#1e2a3a;max-width:680px;margin:0 auto">
+    <div style="background:#0d1b4b;background:linear-gradient(135deg,#0d1b4b,#2557b7);color:#fff;padding:18px 24px;border-radius:8px 8px 0 0">
+      <h2 style="margin:0;font-size:18px">${title}</h2>
+    </div>
+    <div style="background:#fff;border:1px solid #d1d9e6;border-top:none;border-radius:0 0 8px 8px;padding:22px 24px">${inner}</div>
+  </div>`;
+}
+
 function buildEmails(record) {
   const employer = (record.employer && record.employer.name) || 'unknown employer';
   const sub = record.submitter || {};
-  const cobraCount = (record.cobra && record.cobra.plans && record.cobra.plans.length) || 0;
-  const cdhTypes = (record.cdh && record.cdh.selectedPlanTypes) || [];
-  const products = [];
-  if (record.onboarding && record.onboarding.cobra) products.push(`COBRA (${cobraCount} plan${cobraCount===1?'':'s'})`);
-  if (cdhTypes.length) products.push(`CDH: ${cdhTypes.join(', ').toUpperCase()}`);
+  const sections = cleanResponses(record.responses);
+  const products = sections.map(s => s.title)
+    .filter(t => t !== 'Employer Information' && t !== 'CDH Shared Settings');
   const productList = products.join(' · ') || 'none';
   const id = record._id;
+  const received = new Date(record._receivedAt || Date.now()).toLocaleString('en-US', { timeZoneName: 'short' });
+  const slug = employer.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'onboarding';
 
-  // Submitter confirmation
-  const submitterHtml = `
-    <div style="font-family:Segoe UI,Arial,sans-serif;color:#1e2a3a;max-width:620px;margin:0 auto">
-      <div style="background:linear-gradient(135deg,#0d1b4b,#2557b7);color:#fff;padding:18px 24px;border-radius:8px 8px 0 0">
-        <h2 style="margin:0;font-size:1.1rem">Helix Benefit Solutions — Onboarding Received</h2>
-      </div>
-      <div style="background:#fff;border:1px solid #d1d9e6;border-top:none;border-radius:0 0 8px 8px;padding:22px 24px">
-        <p>Hi ${escapeHtml(sub.name || 'there')},</p>
-        <p>Thanks for completing the onboarding form for <b>${escapeHtml(employer)}</b>. We've received your submission and our team will be in touch shortly.</p>
-        <div style="background:#f0f4fa;border-left:3px solid #2557b7;padding:12px 16px;margin:18px 0;border-radius:4px">
-          <div style="font-size:.78rem;color:#6b7c93;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">Submission summary</div>
-          <div><b>Employer:</b> ${escapeHtml(employer)}</div>
-          <div><b>Products:</b> ${escapeHtml(productList)}</div>
-          <div><b>Submitted by:</b> ${escapeHtml(sub.name)} &lt;${escapeHtml(sub.email)}&gt;</div>
-          <div><b>Submission ID:</b> <code>${escapeHtml(id)}</code></div>
-          <div><b>Date:</b> ${escapeHtml(new Date(record._receivedAt || Date.now()).toLocaleString())}</div>
-        </div>
-        <p>A copy has also been delivered to the Helix service team. If you have any questions in the meantime, reply to this email or contact us at <a href="mailto:${escapeHtml(HELIX_EMAIL)}">${escapeHtml(HELIX_EMAIL)}</a>.</p>
-        <p style="margin-top:24px;font-size:.85rem;color:#6b7c93">— Helix Benefit Solutions</p>
-      </div>
-    </div>`;
+  const summary = `<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background:#f0f4fa;border-left:3px solid #2557b7;border-radius:4px;font-size:13px">
+    <tr><td style="padding:12px 16px;line-height:1.7">
+      <b>Employer:</b> ${escapeHtml(employer)}<br>
+      <b>Products:</b> ${escapeHtml(productList)}<br>
+      <b>Submitted by:</b> ${escapeHtml(sub.name || '')} &lt;${escapeHtml(sub.email)}&gt;<br>
+      <b>Submission ID:</b> ${escapeHtml(id)}<br>
+      <b>Received:</b> ${escapeHtml(received)}
+    </td></tr></table>`;
 
-  // Internal Helix notification
-  const helixHtml = `
-    <div style="font-family:Segoe UI,Arial,sans-serif;color:#1e2a3a;max-width:680px;margin:0 auto">
-      <div style="background:linear-gradient(135deg,#0d1b4b,#2557b7);color:#fff;padding:16px 22px;border-radius:8px 8px 0 0">
-        <h2 style="margin:0;font-size:1.05rem">New Onboarding Submission</h2>
-      </div>
-      <div style="background:#fff;border:1px solid #d1d9e6;border-top:none;border-radius:0 0 8px 8px;padding:20px 22px">
-        <table cellpadding="6" style="font-size:.9rem;width:100%">
-          <tr><td style="color:#6b7c93;width:160px"><b>Employer</b></td><td>${escapeHtml(employer)}</td></tr>
-          <tr><td style="color:#6b7c93"><b>Products</b></td><td>${escapeHtml(productList)}</td></tr>
-          <tr><td style="color:#6b7c93"><b>Submitter</b></td><td>${escapeHtml(sub.name || '')} &lt;<a href="mailto:${escapeHtml(sub.email)}">${escapeHtml(sub.email)}</a>&gt;</td></tr>
-          <tr><td style="color:#6b7c93"><b>Submission ID</b></td><td><code>${escapeHtml(id)}</code></td></tr>
-          <tr><td style="color:#6b7c93"><b>Received</b></td><td>${escapeHtml(new Date(record._receivedAt || Date.now()).toLocaleString())}</td></tr>
-        </table>
-        <p style="margin-top:18px"><b>Full submission JSON is attached below.</b> Open the admin viewer to manage submissions.</p>
-        <pre style="background:#0d1b4b;color:#a5d8ff;padding:12px;border-radius:6px;font-size:.72rem;overflow:auto;max-height:420px">${escapeHtml(JSON.stringify(record, null, 2))}</pre>
-      </div>
-    </div>`;
+  const submitterHtml = emailShell('Your Helix onboarding was received', `
+    <p style="margin:0 0 12px">Hi ${escapeHtml(sub.name || 'there')},</p>
+    <p style="margin:0 0 16px">Thanks for completing the onboarding for <b>${escapeHtml(employer)}</b>. Below is a copy of everything you submitted — keep it for your records. Our team will review it and be in touch.</p>
+    ${summary}
+    ${responsesHtml(sections)}
+    <p style="margin:22px 0 0;font-size:13px">Spot something wrong? Reply to this email or contact <a href="mailto:${escapeHtml(HELIX_EMAIL)}">${escapeHtml(HELIX_EMAIL)}</a> and reference submission ID <b>${escapeHtml(id)}</b>.</p>
+    <p style="margin:18px 0 0;font-size:13px;color:#6b7c93">— Helix Benefit Solutions</p>`);
+
+  const helixHtml = emailShell('New onboarding submission', `
+    ${summary}
+    <p style="margin:14px 0 0;font-size:13px">Reply to this email to reach the submitter directly. The answers are attached as a spreadsheet (<b>.csv</b>, opens in Excel) and as <b>.json</b> for the full record.</p>
+    ${responsesHtml(sections)}`);
+
+  const textHeader = `Employer: ${employer}\nProducts: ${productList}\nSubmitted by: ${sub.name || ''} <${sub.email}>\nSubmission ID: ${id}\nReceived: ${received}\n\n`;
 
   return {
     submitter: {
       to: sub.email,
-      subject: `Helix Onboarding — submission received for ${employer}`,
-      html: submitterHtml
+      replyTo: HELIX_EMAIL,
+      subject: `Your Helix onboarding for ${employer} — copy of your responses`,
+      html: submitterHtml,
+      text: `Thanks for completing the Helix onboarding. A copy of your responses follows.\n\n${textHeader}${responsesText(sections)}\n\nQuestions? Contact ${HELIX_EMAIL} and reference ${id}.`
     },
     helix: {
       to: HELIX_EMAIL,
-      subject: `[Helix Onboarding] New submission — ${employer} (${productList})`,
-      html: helixHtml
+      replyTo: sub.email,
+      subject: `New onboarding: ${employer} (${productList})`,
+      html: helixHtml,
+      text: textHeader + responsesText(sections),
+      attachments: [
+        { filename: `${slug}-responses.csv`, content: responsesCsv(sections), contentType: 'text/csv; charset=utf-8' },
+        { filename: `${slug}-submission.json`, content: JSON.stringify(record, null, 2), contentType: 'application/json' }
+      ]
     }
   };
 }

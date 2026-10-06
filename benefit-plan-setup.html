@@ -1195,6 +1195,7 @@ function buildSubmission(){
     submittedAt: new Date().toISOString(),
     submitter: { name: state.submitter.name || '', email: state.submitter.email || '' },
     employer: state.employer,
+    responses: buildResponseSections().map(({ title, groups }) => ({ title, groups })),
     onboarding: {
       cobra: state.onboarding.cobra,
       cdh: state.onboarding.cdh
@@ -1286,7 +1287,10 @@ async function submitForm(){
     if(r.status === 401){ toast('Session expired — please sign in again','err'); setTimeout(goToLogin, 900); return; }
     if(!r.ok) throw new Error('HTTP '+r.status);
     const data = await r.json();
-    toast('Submitted → '+data.id);
+    const mine = data.emails && data.emails.submitter;
+    toast(mine && mine.sent
+      ? 'Submitted — a copy of your responses was emailed to ' + mine.to
+      : 'Submitted — reference ' + data.id);
     closeModal('modal-review');
   } catch(e) {
     console.error('Submit failed, falling back to download:', e);
@@ -1714,80 +1718,105 @@ function renderReview(){
     ? `<div class="rev-errors"><h4>⚠ ${errs.length} item(s) need attention before submitting:</h4><ul>${errs.map(e=>'<li>'+escapeHtml(e)+'</li>').join('')}</ul></div>`
     : '';
 
-  const out = [];
-  const sub = buildSubmission();
-  const emp = sub.employer || {};
-  out.push(revCard('Employer Information', 'employer', `<div class="rev-grid">
-    ${rowHtml('Employer / Group Name', emp.name)}
-    ${rowHtml('Helix Group Code', emp.code)}
-    ${rowHtml('Primary Contact', emp.contact)}
-    ${rowHtml('Contact Email', emp.email)}
-    ${rowHtml('Contact Phone', emp.phone)}
-  </div>`));
+  const out = buildResponseSections().map(sec => {
+    const body = sec.groups.map(g =>
+      (g.heading ? `<div class="rev-subhead">${escapeHtml(g.heading)}</div>` : '')
+      + `<div class="rev-grid">${g.rows.map(([k,v]) => rowHtml(escapeHtml(k), v)).join('')}</div>`
+    ).join('');
+    return revCard(escapeHtml(sec.title), sec.step, body);
+  });
+  document.getElementById('review-summary').innerHTML = out.join('');
+}
 
-  // COBRA
+// The answers as labelled sections. Drives the review page and is sent with
+// the submission so both confirmation emails show exactly what was reviewed.
+function buildResponseSections(){
+  const sections = [];
+  const emp = collectEmployer();
+  sections.push({ title:'Employer Information', step:'employer', groups:[{ heading:null, rows:[
+    ['Employer / Group Name', emp.name], ['Helix Group Code', emp.helixCode],
+    ['Primary Contact', emp.contactName], ['Contact Email', emp.contactEmail],
+    ['Contact Phone', emp.contactPhone]
+  ]}]});
+
   if(state.onboarding.cobra){
     const plans = state.plans || [];
-    let body;
-    if(!plans.length) body = '';
-    else {
-      body = plans.map((p, i) => {
-        const rows = [
-          ['Benefit Type', p.benefitType], ['Carrier', p.carrier], ['Plan Name', p.planName],
-          ['Coverage Types', [p.coverage?.cobra?'COBRA':null, p.coverage?.direct?'Direct Billing':null].filter(Boolean).join(', ')],
-          ['Effective Start', p.effectiveStart], ['Group Number', p.groupNumber], ['Billing Due Day', p.billingDay],
-          ['Self-Insured', p.selfInsured], ['Loss of Coverage', p.lossOfCoverage],
-          ['Plan Year', (p.planYearMonth && p.planYearDay) ? p.planYearMonth+'/'+p.planYearDay : null],
-          ['Employee Groups', p.employeeGroups], ['Rate Effective', (p.rateEffectiveStart||'') + (p.rateEffectiveEnd?' – '+p.rateEffectiveEnd:'')],
-          ['Rate Table Type', p.rateTableType], ['Max Children Charged', p.maxChildrenCharged], ['Max Child Age', p.maxChildAge]
-        ];
-        const compRows = (p.composite||[]).filter(r=>r.tier||r.premium).map(r => `<div class="rev-row"><span class="rev-k">${escapeHtml(r.tier||'(tier)')}</span><span class="rev-v">$${escapeHtml(r.premium||'0')}</span></div>`).join('');
-        const memRows = (p.member||[]).filter(r=>r.premium).map(r => `<div class="rev-row"><span class="rev-k">${escapeHtml((r.ageMin||'?')+'–'+(r.ageMax||'?')+' · '+(r.gender||'Any'))}</span><span class="rev-v">$${escapeHtml(r.premium||'0')}</span></div>`).join('');
-        return `<div class="rev-subhead">Plan ${i+1} — ${escapeHtml(p.benefitType||'(type)')} · ${escapeHtml(p.carrier||'(carrier)')}</div>
-          <div class="rev-grid">${rows.map(([k,v]) => rowHtml(k,v)).join('')}</div>
-          ${compRows ? `<div class="rev-subhead">Composite Rates</div><div class="rev-grid">${compRows}</div>` : ''}
-          ${memRows  ? `<div class="rev-subhead">Member-Level Rates</div><div class="rev-grid">${memRows}</div>` : ''}`;
-      }).join('');
-    }
-    out.push(revCard(`COBRA — ${plans.length} plan${plans.length===1?'':'s'}`, 'cobra', body));
+    const groups = [];
+    plans.forEach((p, i) => {
+      const loc = LOC_OPTIONS.find(o => o.v === p.lossOfCoverage);
+      const rateType = { composite:'Composite', member:'Member Level' }[p.rateTableType] || p.rateTableType;
+      groups.push({ heading:`Plan ${i+1} — ${p.benefitType||'(type)'} · ${p.carrier||'(carrier)'}`, rows:[
+        ['Benefit Type', p.benefitType], ['Carrier', p.carrier], ['Plan Name', p.planName],
+        ['Coverage Types', [p.coverage?.cobra?'COBRA':null, p.coverage?.direct?'Direct Billing':null].filter(Boolean).join(', ')],
+        ['Direct Billing Type', p.coverage?.direct ? p.coverage.directType : null],
+        ['Effective Start', p.effectiveStart], ['Group Number', p.groupNumber], ['Billing Due Day', p.billingDay],
+        ['Self-Insured', p.selfInsured], ['Loss of Coverage', loc ? loc.l : p.lossOfCoverage],
+        ['Plan Year Start', (p.planYearMonth && p.planYearDay) ? p.planYearMonth+' '+p.planYearDay : null],
+        ['Employee Groups', p.employeeGroups],
+        ['Rate Effective', (p.rateEffectiveStart||'') + (p.rateEffectiveEnd?' – '+p.rateEffectiveEnd:'') || null],
+        ['Rate Table Type', rateType], ['Max Children Charged', p.maxChildrenCharged], ['Max Child Age', p.maxChildAge]
+      ]});
+      const comp = (p.composite||[]).filter(r => r.tier || r.premium);
+      if(p.rateTableType === 'composite' && comp.length){
+        groups.push({ heading:`Plan ${i+1} — Composite Rates`,
+          rows: comp.map(r => [r.tier || '(tier)', r.premium ? '$'+r.premium : null]) });
+      }
+      const mem = (p.member||[]).filter(r => r.premium);
+      if(p.rateTableType === 'member' && mem.length){
+        groups.push({ heading:`Plan ${i+1} — Member-Level Rates`,
+          rows: mem.map(r => [`Age ${r.ageMin||'?'}–${r.ageMax||'?'} · ${r.gender||'Any'}`, '$'+r.premium]) });
+      }
+    });
+    sections.push({ title:`COBRA — ${plans.length} plan${plans.length===1?'':'s'}`, step:'cobra', groups });
   }
 
-  // CDH plans
+  // One section per selected CDH plan (Transit + Parking share the Commuter plan)
+  const seen = new Set();
   PRODUCT_TILES.forEach(t => {
-    if(t.target !== 'cdh' || !state.tilesPicked[t.key]) return;
-    // skip duplicates (transit+parking both → commuter)
-    const seenAttr = '_revRendered_'+t.cdh;
-    if(state[seenAttr]) return; state[seenAttr] = true;
-    const key = t.cdh;
-    const meta = CDH_PLAN_TYPES.find(x => x.key === key);
-    const def = CDH_FIELDS[key];
+    if(t.target !== 'cdh' || !state.tilesPicked[t.key] || seen.has(t.cdh)) return;
+    seen.add(t.cdh);
+    const meta = CDH_PLAN_TYPES.find(x => x.key === t.cdh);
+    const def = CDH_FIELDS[t.cdh];
     if(!def || !meta) return;
-    const bag = state.cdh.plans[key] || {};
+    const bag = state.cdh.plans[t.cdh] || {};
     let fieldDefs = [];
     if(def.common)   fieldDefs = fieldDefs.concat(CDH_FIELDS._common);
     if(def.coverage) fieldDefs = fieldDefs.concat(CDH_FIELDS._coverage);
     if(def.funding)  fieldDefs = fieldDefs.concat(CDH_FIELDS._funding);
     if(def.extra)    fieldDefs = fieldDefs.concat(def.extra);
-    const rows = fieldDefs.map(f => rowHtml(f.l, bag[f.k])).join('');
-    out.push(revCard(meta.label, 'cdh:'+key, `<div class="rev-grid">${rows}</div>`));
+    sections.push({ title:meta.label, step:'cdh:'+t.cdh, groups:[{ heading:null,
+      rows: fieldDefs.filter(f => showIfMet(f, bag)).map(f => [f.l, fieldDisplay(f, bag[f.k])]) }] });
   });
-  // Reset seen flags
-  PRODUCT_TILES.forEach(t => { if(t.cdh) delete state['_revRendered_'+t.cdh]; });
 
-  // CDH shared
   if(Object.values(state.cdh.selectedTypes).some(Boolean)){
     const shared = state.cdh.shared || {};
     const groups = [];
-    let cur = null;
     CDH_SHARED_FIELDS.forEach(f => {
-      if(f.section){ cur = { section:f.section, rows:[] }; groups.push(cur); }
-      else if(cur) cur.rows.push(rowHtml(f.l, shared[f.k]));
+      if(f.section) groups.push({ heading:f.section, rows:[] });
+      else if(groups.length && showIfMet(f, shared)) groups[groups.length-1].rows.push([f.l, fieldDisplay(f, shared[f.k])]);
     });
-    const body = groups.map(g => `<div class="rev-subhead">${escapeHtml(g.section)}</div><div class="rev-grid">${g.rows.join('')}</div>`).join('');
-    out.push(revCard('CDH Shared Settings', 'cdh-shared', body));
+    sections.push({ title:'CDH Shared Settings', step:'cdh-shared', groups });
   }
 
-  document.getElementById('review-summary').innerHTML = out.join('');
+  // Every value as display text, so the server never has to know field codes
+  sections.forEach(s => s.groups.forEach(g => { g.rows = g.rows.map(([k,v]) => [k, fmtVal(v)]); }));
+  return sections;
+}
+// A field hidden by its showIf (e.g. Max Rollover when rollover is off) isn't an answer
+function showIfMet(f, bag){
+  if(!f.showIf) return true;
+  const [k, v] = f.showIf.split('=');
+  return String(bag[k]) === v;
+}
+// Radio options store a code; show the option's label instead
+function fieldDisplay(f, v){
+  if(v == null || v === '') return v;
+  if(Array.isArray(f.opts)){
+    const o = f.opts.find(o => typeof o === 'object' && o.v === v);
+    if(o) return o.l;
+  }
+  if(f.type === 'money' && /^\d+(\.\d+)?$/.test(String(v))) return '$' + v;
+  return v;
 }
 
 function wizStepLabel(s){
