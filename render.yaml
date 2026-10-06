@@ -24,13 +24,13 @@ services:
         value: support@helixbenefits.net
       - key: MAIL_FROM
         value: Helix Benefit Solutions <support@helixbenefits.net>
+      # From your email-sending provider; entered in the Render dashboard, never committed
       - key: SMTP_HOST
-        value: smtp.office365.com
+        sync: false
       - key: SMTP_PORT
-        value: "587"
+        sync: false
       - key: SMTP_USER
-        value: support@helixbenefits.net
-      # Entered in the Render dashboard, never committed
+        sync: false
       - key: SMTP_PASS
         sync: false
       # Set this once a custom domain is attached (e.g. https://onboarding.helixbenefits.net).
