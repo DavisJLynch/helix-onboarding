@@ -40,8 +40,8 @@ const OUTBOX_DIR = path.join(ROOT, 'outbox');           // fallback when SMTP no
 const DB_PATH = path.join(ROOT, 'helix.db');
 const PORT = Number(process.env.PORT) || 3000;
 
-const HELIX_EMAIL = process.env.HELIX_EMAIL || 'service@helixbenefits.net';
-const MAIL_FROM   = process.env.MAIL_FROM   || 'Helix Benefit Solutions <service@helixbenefits.net>';
+const HELIX_EMAIL = process.env.HELIX_EMAIL || 'support@helixbenefits.net';
+const MAIL_FROM   = process.env.MAIL_FROM   || 'Helix Benefit Solutions <support@helixbenefits.net>';
 
 if (!fs.existsSync(SUBMISSIONS_DIR)) fs.mkdirSync(SUBMISSIONS_DIR, { recursive: true });
 if (!fs.existsSync(OUTBOX_DIR)) fs.mkdirSync(OUTBOX_DIR, { recursive: true });
