@@ -125,8 +125,11 @@ form{padding:22px 32px 30px;display:flex;flex-direction:column;gap:14px}
 
 <script>
 let mode = 'login';
+let pendingEmail = '';
 const params = new URLSearchParams(location.search);
-const nextUrl = params.get('next') || '/benefit-plan-setup.html';
+// Only ever return to a page on this site
+const rawNext = params.get('next') || '';
+const nextUrl = /^\/[^/\\]/.test(rawNext) ? rawNext : '/benefit-plan-setup.html';
 
 function setMode(m){
   mode = m;
@@ -174,6 +177,12 @@ async function submitAuth(e){
       body: JSON.stringify(payload)
     });
     const data = await r.json();
+    if(data.needsVerification){
+      showCheckEmail(data.email || payload.email, mode === 'login');
+      btn.disabled = false;
+      btn.textContent = mode === 'register' ? 'Create Account' : 'Sign In';
+      return;
+    }
     if(!r.ok) throw new Error(data.error || 'Something went wrong.');
     showMsg('Signed in. Taking you to the form…', 'ok');
     location.href = nextUrl;
@@ -182,6 +191,39 @@ async function submitAuth(e){
     btn.disabled = false;
     btn.textContent = mode === 'register' ? 'Create Account' : 'Sign In';
   }
+}
+
+function showCheckEmail(email, fromLogin){
+  pendingEmail = email;
+  const el = document.getElementById('msg');
+  el.className = 'msg show ok';
+  el.innerHTML = '';
+  const lead = document.createElement('div');
+  lead.innerHTML = fromLogin
+    ? '<b>Please confirm your email first.</b>'
+    : '<b>Almost done — check your email.</b>';
+  const body = document.createElement('div');
+  body.style.marginTop = '4px';
+  body.textContent = 'We sent a confirmation link to ' + email
+    + '. Click it to finish signing in. The link expires in 24 hours.';
+  const resend = document.createElement('div');
+  resend.style.marginTop = '8px';
+  resend.innerHTML = 'Didn\'t get it? <a href="#" onclick="resendLink(event)" style="color:inherit;font-weight:600">Send a new link</a>';
+  el.append(lead, body, resend);
+}
+
+async function resendLink(e){
+  e.preventDefault();
+  try {
+    await fetch('/api/auth/resend', {
+      method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email: pendingEmail })
+    });
+  } catch(err){}
+  showMsg('A new confirmation link is on its way to ' + pendingEmail + '. Check your spam folder if it doesn\'t arrive in a few minutes.', 'ok');
+}
+
+if(params.get('verify') === 'invalid'){
+  showMsg('That confirmation link is invalid or has expired. Sign in to have a new one sent.');
 }
 
 // Already signed in? Skip the login screen.

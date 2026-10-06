@@ -1,17 +1,17 @@
 {
-  "name": "onboarding-docs",
+  "name": "helix-onboarding",
   "version": "1.0.0",
-  "description": "",
+  "description": "Helix Benefit Solutions client onboarding portal",
   "main": "server.js",
+  "private": true,
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node server.js"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "engines": {
+    "node": ">=24"
+  },
   "type": "commonjs",
   "dependencies": {
-    "nodemailer": "^8.0.7"
+    "nodemailer": "^10.0.15"
   }
 }

@@ -1,0 +1,39 @@
+# Render Blueprint — Dashboard → New → Blueprint, then pick this repository.
+services:
+  - type: web
+    name: helix-onboarding
+    runtime: node
+    # A persistent disk requires a paid instance. On the free plan the database
+    # would be erased on every deploy and restart.
+    plan: starter
+    buildCommand: npm ci
+    startCommand: node server.js
+    healthCheckPath: /healthz
+    # One instance only: SQLite lives on this service's disk.
+    numInstances: 1
+    disk:
+      name: helix-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: NODE_VERSION
+        value: "24"
+      - key: DATA_DIR
+        value: /var/data
+      - key: HELIX_EMAIL
+        value: support@helixbenefits.net
+      - key: MAIL_FROM
+        value: Helix Benefit Solutions <support@helixbenefits.net>
+      - key: SMTP_HOST
+        value: smtp.office365.com
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USER
+        value: support@helixbenefits.net
+      # Entered in the Render dashboard, never committed
+      - key: SMTP_PASS
+        sync: false
+      # Set this once a custom domain is attached (e.g. https://onboarding.helixbenefits.net).
+      # Until then the app uses Render's own URL automatically.
+      - key: APP_URL
+        sync: false

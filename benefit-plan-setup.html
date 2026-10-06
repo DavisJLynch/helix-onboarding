@@ -1907,7 +1907,14 @@ renderCarriers();
 renderProductTiles();
 updateFooter();
 showStep(1);
-initAccount().then(ok => { if(ok) showDraftBanner(); });
+initAccount().then(ok => {
+  if(!ok) return;
+  showDraftBanner();
+  if(new URLSearchParams(location.search).get('verified') === '1'){
+    toast('Email confirmed — you\'re signed in.');
+    history.replaceState(null, '', location.pathname);
+  }
+});
 </script>
 
 </body>

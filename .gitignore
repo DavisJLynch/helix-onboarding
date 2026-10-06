@@ -9,3 +9,11 @@ outbox/
 *.log
 .DS_Store
 Thumbs.db
+.claude/worktrees/
+# Source documents and old prototypes stay local
+*.xlsx
+*.docx
+cobra-onboarding.html
+onboarding-app.html
+serve.json
+helix-logo.webp

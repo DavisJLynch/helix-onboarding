@@ -35,10 +35,19 @@ const { DatabaseSync } = require('node:sqlite');
 const nodemailer = require('nodemailer');
 
 const ROOT = __dirname;
-const SUBMISSIONS_DIR = path.join(ROOT, 'submissions'); // legacy + JSON backup
-const OUTBOX_DIR = path.join(ROOT, 'outbox');           // fallback when SMTP not configured
-const DB_PATH = path.join(ROOT, 'helix.db');
+// Everything the app writes lives under DATA_DIR. On Render this must be the
+// persistent disk mount, or every deploy wipes the database.
+const DATA_DIR = process.env.DATA_DIR || ROOT;
+const SUBMISSIONS_DIR = path.join(DATA_DIR, 'submissions'); // JSON backup of each submission
+const OUTBOX_DIR = path.join(DATA_DIR, 'outbox');           // fallback when SMTP not configured
+const DB_PATH = path.join(DATA_DIR, 'helix.db');
 const PORT = Number(process.env.PORT) || 3000;
+// Public address of the app, used in emailed links. Render sets RENDER_EXTERNAL_URL.
+const APP_URL = (process.env.APP_URL || process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`).replace(/\/+$/, '');
+// Cookies only travel over HTTPS once the app is served over HTTPS
+const COOKIE_SECURE = process.env.COOKIE_SECURE === 'true' || APP_URL.startsWith('https://');
+
+if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 
 const HELIX_EMAIL = process.env.HELIX_EMAIL || 'support@helixbenefits.net';
 const MAIL_FROM   = process.env.MAIL_FROM   || 'Helix Benefit Solutions <support@helixbenefits.net>';
@@ -337,6 +346,16 @@ if (db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='draf
 // Link submissions to the account that sent them (added after initial release)
 try { db.exec(`ALTER TABLE submissions ADD COLUMN user_id INTEGER`); } catch (e) { /* already exists */ }
 
+// Email verification. Without it anyone could register someone else's address —
+// including an @helixbenefits.net one, which grants the admin dashboard.
+try {
+  db.exec(`ALTER TABLE users ADD COLUMN email_verified_at TEXT`);
+  // Accounts that existed before verification was introduced keep working
+  db.exec(`UPDATE users SET email_verified_at = created_at WHERE email_verified_at IS NULL`);
+} catch (e) { /* already exists */ }
+try { db.exec(`ALTER TABLE users ADD COLUMN verify_token_hash TEXT`); } catch (e) {}
+try { db.exec(`ALTER TABLE users ADD COLUMN verify_expires TEXT`); } catch (e) {}
+
 const stmtInsertSubmission = db.prepare(`
   INSERT INTO submissions
     (id, employer_name, employer_ein, onboarding_cobra, onboarding_cdh,
@@ -478,7 +497,8 @@ function createSession(userId) {
   const token = crypto.randomBytes(32).toString('hex');
   const now = new Date();
   const expires = new Date(now.getTime() + SESSION_DAYS * 86400000);
-  stmtInsertSession.run(token, userId, now.toISOString(), expires.toISOString());
+  // Only a hash is stored, so a copy of the database can't be replayed as a login
+  stmtInsertSession.run(sha256(token), userId, now.toISOString(), expires.toISOString());
   stmtPurgeSessions.run(now.toISOString());
   return { token, expires };
 }
@@ -490,7 +510,7 @@ function sessionCookie(token, expires) {
     'SameSite=Lax',
     `Expires=${expires.toUTCString()}`
   ];
-  if (process.env.COOKIE_SECURE === 'true') parts.push('Secure');
+  if (COOKIE_SECURE) parts.push('Secure');
   return parts.join('; ');
 }
 function clearCookie() {
@@ -499,10 +519,11 @@ function clearCookie() {
 function currentUser(req) {
   const token = parseCookies(req)[SESSION_COOKIE];
   if (!token) return null;
-  const row = stmtGetSession.get(token);
+  const tokenHash = sha256(token);
+  const row = stmtGetSession.get(tokenHash);
   if (!row) return null;
-  if (new Date(row.expires_at) < new Date()) { stmtDeleteSession.run(token); return null; }
-  return { id: row.user_id, email: row.email, name: row.name, company: row.company, isAdmin: !!row.is_admin, token };
+  if (new Date(row.expires_at) < new Date()) { stmtDeleteSession.run(tokenHash); return null; }
+  return { id: row.user_id, email: row.email, name: row.name, company: row.company, isAdmin: !!row.is_admin, token: tokenHash };
 }
 function publicUser(u) {
   return u && { id: u.id, email: u.email, name: u.name, company: u.company, isAdmin: u.isAdmin };
@@ -513,6 +534,61 @@ function isValidEmail(e) {
 // Anyone with a Helix address administers submissions; everyone else is a client user.
 function adminEmail(email) {
   return /@helixbenefits\.net$/i.test(String(email || '').trim());
+}
+
+// ---- Email verification ----
+const VERIFY_HOURS = 24;
+const stmtSetVerifyToken = db.prepare(`UPDATE users SET verify_token_hash = ?, verify_expires = ? WHERE id = ?`);
+const stmtUserByVerifyHash = db.prepare(`SELECT * FROM users WHERE verify_token_hash = ?`);
+const stmtMarkVerified = db.prepare(`
+  UPDATE users SET email_verified_at = ?, verify_token_hash = NULL, verify_expires = NULL WHERE id = ?
+`);
+// An unverified account proves nothing about who made it, so a fresh
+// registration for the same address takes it over. Whoever controls the
+// mailbox is the one who can finish verifying.
+const stmtReclaimUnverified = db.prepare(`
+  UPDATE users SET name = ?, company = ?, password_hash = ?, is_admin = ? WHERE id = ? AND email_verified_at IS NULL
+`);
+
+function sha256(s) { return crypto.createHash('sha256').update(String(s)).digest('hex'); }
+
+async function sendVerification(user) {
+  const token = crypto.randomBytes(32).toString('hex');
+  const expires = new Date(Date.now() + VERIFY_HOURS * 3600000).toISOString();
+  stmtSetVerifyToken.run(sha256(token), expires, user.id);
+  const link = `${APP_URL}/api/auth/verify?token=${token}`;
+  if (!mailTransport) console.log(`  [verify] no SMTP — verification link for ${user.email}: ${link}`);
+  return sendMail({
+    to: user.email,
+    subject: 'Confirm your email for Helix onboarding',
+    text: `Hi ${user.name || 'there'},\n\nConfirm your email to finish setting up your Helix onboarding account:\n${link}\n\nThis link expires in ${VERIFY_HOURS} hours. If you didn't create an account, ignore this email.`,
+    html: emailShell('Confirm your email', `
+      <p style="margin:0 0 12px">Hi ${escapeHtml(user.name || 'there')},</p>
+      <p style="margin:0 0 20px">Confirm your email address to finish setting up your Helix onboarding account.</p>
+      <p style="margin:0 0 20px"><a href="${escapeHtml(link)}" style="background:#2557b7;color:#fff;text-decoration:none;padding:11px 22px;border-radius:6px;font-weight:600;display:inline-block">Confirm email address</a></p>
+      <p style="margin:0;font-size:12px;color:#6b7c93">This link expires in ${VERIFY_HOURS} hours. If you didn't create an account, you can ignore this email.</p>`)
+  });
+}
+
+// ---- Rate limiting (in memory; resets on restart, which is fine for one instance) ----
+const hits = new Map();
+function rateLimited(key, max, windowMs) {
+  const now = Date.now();
+  const h = hits.get(key);
+  if (!h || now > h.reset) { hits.set(key, { count: 1, reset: now + windowMs }); return false; }
+  h.count++;
+  return h.count > max;
+}
+setInterval(() => { const now = Date.now(); for (const [k, h] of hits) if (now > h.reset) hits.delete(k); }, 600000).unref();
+// Behind Render's proxy the socket address is the proxy, so use the last
+// X-Forwarded-For hop. That may still be shared infrastructure, so per-IP
+// limits are a loose backstop; the per-email limits do the real work.
+function clientIp(req) {
+  if (process.env.RENDER) {
+    const xff = String(req.headers['x-forwarded-for'] || '').split(',').map(s => s.trim()).filter(Boolean);
+    if (xff.length) return xff[xff.length - 1];
+  }
+  return req.socket.remoteAddress || 'unknown';
 }
 
 function insertSubmission(record) {
@@ -597,16 +673,35 @@ function sendText(res, code, body, ctype='text/plain; charset=utf-8') {
   res.writeHead(code, { 'Content-Type': ctype, 'Content-Length': Buffer.byteLength(body) });
   res.end(body);
 }
+// The only files a browser may fetch. The project folder also holds the
+// database, submissions, source and git history, so serving "whatever exists"
+// would hand all of it to anyone who asked.
+const PUBLIC_FILES = new Set([
+  'index.html', 'login.html', 'benefit-plan-setup.html', 'admin.html',
+  'helix-logo-white.png', 'helix-logo-color.png'
+]);
+
 function serveStatic(req, res) {
-  let rel = decodeURIComponent(req.url.split('?')[0]);
+  let rel;
+  try { rel = decodeURIComponent(req.url.split('?')[0]); } catch { rel = ''; }
   if (rel === '/' || rel === '') rel = '/index.html';
-  const safe = path.normalize(rel).replace(/^([/\\])+/, '');
-  const full = path.join(ROOT, safe);
-  if (!full.startsWith(ROOT)) { res.writeHead(403); return res.end('Forbidden'); }
+  const name = rel.replace(/^\/+/, '');
+  if (!PUBLIC_FILES.has(name)) {
+    res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+    return res.end('Not found');
+  }
+  const full = path.join(ROOT, name);
   fs.stat(full, (err, stat) => {
-    if (err || !stat.isFile()) { res.writeHead(404); return res.end('Not found: ' + rel); }
+    if (err || !stat.isFile()) {
+      res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+      return res.end('Not found');
+    }
     const ext = path.extname(full).toLowerCase();
-    res.writeHead(200, { 'Content-Type': MIME[ext] || 'application/octet-stream', 'Content-Length': stat.size });
+    res.writeHead(200, {
+      'Content-Type': MIME[ext] || 'application/octet-stream',
+      'Content-Length': stat.size,
+      'Cache-Control': ext === '.html' ? 'no-store' : 'public, max-age=86400'
+    });
     fs.createReadStream(full).pipe(res);
   });
 }
@@ -648,13 +743,19 @@ function listMeta(user) {
 }
 
 const server = http.createServer(async (req, res) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  if (req.method === 'OPTIONS') { res.writeHead(204); return res.end(); }
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'same-origin');
+  if (COOKIE_SECURE) res.setHeader('Strict-Transport-Security', 'max-age=31536000');
 
   const parsed = url.parse(req.url, true);
   const pathname = parsed.pathname;
+
+  // Render pings this to decide whether a deploy is healthy
+  if (pathname === '/healthz') {
+    try { db.prepare('SELECT 1').get(); return sendText(res, 200, 'ok'); }
+    catch (e) { return sendText(res, 500, 'db unavailable'); }
+  }
 
   // ============== Auth routes ==============
 
@@ -665,18 +766,31 @@ const server = http.createServer(async (req, res) => {
       const email = String(body.email || '').trim().toLowerCase();
       const password = String(body.password || '');
       const name = String(body.name || '').trim();
+      if (rateLimited('reg-ip:' + clientIp(req), 30, 3600000) || rateLimited('reg:' + email, 5, 3600000)) {
+        return sendJson(res, 429, { error: 'Too many attempts. Please wait a while and try again.' });
+      }
       if (!isValidEmail(email)) return sendJson(res, 400, { error: 'Please enter a valid email address.' });
       if (password.length < 8) return sendJson(res, 400, { error: 'Password must be at least 8 characters.' });
+      if (password.length > 200) return sendJson(res, 400, { error: 'Password is too long.' });
       if (!name) return sendJson(res, 400, { error: 'Please enter your name.' });
-      if (stmtUserByEmail.get(email)) return sendJson(res, 409, { error: 'An account with that email already exists. Try signing in instead.' });
+      const company = String(body.company || '').trim().slice(0, 200);
 
-      const info = stmtCreateUser.run(email, name, String(body.company || '').trim(), hashPassword(password),
-        adminEmail(email) ? 1 : 0, new Date().toISOString());
-      const userId = Number(info.lastInsertRowid);
-      const { token, expires } = createSession(userId);
-      res.setHeader('Set-Cookie', sessionCookie(token, expires));
-      console.log(`[auth] registered ${email}${adminEmail(email) ? ' (admin)' : ''}`);
-      return sendJson(res, 201, { ok: true, user: publicUser(currentUser({ headers: { cookie: `${SESSION_COOKIE}=${token}` } })) });
+      const existing = stmtUserByEmail.get(email);
+      if (existing && existing.email_verified_at) {
+        return sendJson(res, 409, { error: 'An account with that email already exists. Try signing in instead.' });
+      }
+      let user;
+      if (existing) {
+        stmtReclaimUnverified.run(name.slice(0, 200), company, hashPassword(password), adminEmail(email) ? 1 : 0, existing.id);
+        user = stmtUserById.get(existing.id);
+      } else {
+        const info = stmtCreateUser.run(email, name.slice(0, 200), company, hashPassword(password),
+          adminEmail(email) ? 1 : 0, new Date().toISOString());
+        user = stmtUserById.get(Number(info.lastInsertRowid));
+      }
+      await sendVerification(user);
+      console.log(`[auth] registered ${email} — verification sent`);
+      return sendJson(res, 201, { ok: true, needsVerification: true, email });
     } catch (e) {
       console.error('register error:', e);
       return sendJson(res, 500, { error: 'Could not create the account.' });
@@ -689,10 +803,26 @@ const server = http.createServer(async (req, res) => {
       let body; try { body = JSON.parse(await readBody(req)); } catch { return sendJson(res, 400, { error: 'Invalid JSON' }); }
       const email = String(body.email || '').trim().toLowerCase();
       const password = String(body.password || '');
+      if (rateLimited('login-ip:' + clientIp(req), 100, 900000)) {
+        return sendJson(res, 429, { error: 'Too many sign-in attempts. Please wait 15 minutes and try again.' });
+      }
+      const failKey = 'login-fail:' + email;
+      const fails = hits.get(failKey);
+      if (fails && Date.now() < fails.reset && fails.count >= 10) {
+        return sendJson(res, 429, { error: 'Too many failed sign-ins for this account. Please wait 15 minutes and try again.' });
+      }
       const user = stmtUserByEmail.get(email);
       // Same message either way so we don't reveal which emails have accounts
       if (!user || !verifyPassword(password, user.password_hash)) {
+        rateLimited(failKey, 10, 900000);
         return sendJson(res, 401, { error: 'Email or password is incorrect.' });
+      }
+      hits.delete(failKey);
+      if (!user.email_verified_at) {
+        return sendJson(res, 403, {
+          error: `Please confirm your email first — we sent a link to ${user.email}.`,
+          needsVerification: true, email: user.email
+        });
       }
       stmtTouchLogin.run(new Date().toISOString(), user.id);
       const { token, expires } = createSession(user.id);
@@ -703,6 +833,33 @@ const server = http.createServer(async (req, res) => {
       console.error('login error:', e);
       return sendJson(res, 500, { error: 'Could not sign in.' });
     }
+  }
+
+  // GET /api/auth/verify?token=…  (the link in the confirmation email)
+  if (req.method === 'GET' && pathname === '/api/auth/verify') {
+    const token = String(parsed.query.token || '');
+    const user = token ? stmtUserByVerifyHash.get(sha256(token)) : null;
+    if (!user || !user.verify_expires || new Date(user.verify_expires) < new Date()) {
+      res.writeHead(302, { Location: '/login.html?verify=invalid' });
+      return res.end();
+    }
+    stmtMarkVerified.run(new Date().toISOString(), user.id);
+    stmtTouchLogin.run(new Date().toISOString(), user.id);
+    const { token: session, expires } = createSession(user.id);
+    console.log(`[auth] verified ${user.email}${user.is_admin ? ' (admin)' : ''}`);
+    res.writeHead(302, { 'Set-Cookie': sessionCookie(session, expires), Location: '/benefit-plan-setup.html?verified=1' });
+    return res.end();
+  }
+
+  // POST /api/auth/resend  { email } — always answers the same way
+  if (req.method === 'POST' && pathname === '/api/auth/resend') {
+    let body; try { body = JSON.parse(await readBody(req)); } catch { return sendJson(res, 400, { error: 'Invalid JSON' }); }
+    const email = String(body.email || '').trim().toLowerCase();
+    if (!rateLimited('resend:' + email, 3, 3600000) && !rateLimited('resend-ip:' + clientIp(req), 20, 3600000)) {
+      const user = stmtUserByEmail.get(email);
+      if (user && !user.email_verified_at) await sendVerification(user);
+    }
+    return sendJson(res, 200, { ok: true, message: 'If that account is waiting for confirmation, a new link is on its way.' });
   }
 
   // POST /api/auth/logout
@@ -926,9 +1083,11 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`Helix Onboarding server listening on http://localhost:${PORT}`);
-  console.log(`  Form:   http://localhost:${PORT}/benefit-plan-setup.html`);
-  console.log(`  Admin:  http://localhost:${PORT}/admin`);
-  console.log(`  DB:     ${DB_PATH}`);
-  console.log(`  JSON:   ${SUBMISSIONS_DIR} (kept as backup)`);
+  console.log(`Helix Onboarding listening on port ${PORT}`);
+  console.log(`  App:    ${APP_URL}`);
+  console.log(`  Admin:  ${APP_URL}/admin`);
+  console.log(`  Data:   ${DATA_DIR}`);
+  if (process.env.RENDER && DATA_DIR === ROOT) {
+    console.warn('  ⚠ DATA_DIR is not set — data is on ephemeral storage and will be lost on the next deploy.');
+  }
 });
