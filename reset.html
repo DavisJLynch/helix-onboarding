@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>Reset Password – Helix Benefit Solutions Onboarding</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --primary:#2557b7;--primary-dark:#1a3f8a;
+  --navy:#0d1b4b;--border:#d1d9e6;--text:#1e2a3a;--muted:#6b7c93;
+  --error:#dc2626;--bg:#f0f4fa;
+}
+body{font-family:'Segoe UI',Arial,sans-serif;background:var(--bg);color:var(--text);
+  min-height:100vh;display:flex;flex-direction:column}
+.hdr{background:linear-gradient(135deg,var(--navy) 0%,var(--primary-dark) 55%,var(--primary) 100%);
+  color:#fff;padding:10px 30px;display:flex;align-items:center;gap:18px;
+  box-shadow:0 3px 12px rgba(0,0,0,.25)}
+.hdr-logo{height:44px;width:auto;object-fit:contain}
+.hdr-divider{width:1px;height:36px;background:rgba(255,255,255,.25);flex-shrink:0}
+.hdr-text h1{font-size:.95rem;font-weight:600;letter-spacing:.01em}
+.hdr-text span{font-size:.73rem;opacity:.68}
+.wrap{flex:1;display:flex;align-items:flex-start;justify-content:center;padding:48px 20px 60px}
+.card{background:#fff;border-radius:14px;box-shadow:0 6px 28px rgba(13,27,75,.12);
+  width:100%;max-width:440px;overflow:hidden}
+.card-top{padding:26px 32px 10px;text-align:center}
+.card-top img{height:52px;width:auto;object-fit:contain;margin-bottom:14px}
+.card-top h2{font-size:1.32rem;color:var(--primary-dark);font-weight:700;margin-bottom:6px}
+.card-top p{font-size:.86rem;color:var(--muted);line-height:1.5}
+form{padding:22px 32px 30px;display:flex;flex-direction:column;gap:14px}
+.f{display:flex;flex-direction:column;gap:5px}
+.f label{font-size:.82rem;font-weight:600}
+.f label .req{color:var(--error)}
+.f input{border:1.5px solid var(--border);border-radius:7px;padding:10px 12px;
+  font-size:.9rem;font-family:inherit;color:var(--text);background:#fff;
+  transition:border-color .15s,box-shadow .15s;width:100%}
+.f input:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px rgba(37,87,183,.12)}
+.hint{font-size:.74rem;color:var(--muted);line-height:1.4}
+.btn{display:inline-flex;align-items:center;justify-content:center;border-radius:8px;
+  padding:12px 18px;font-size:.92rem;font-weight:600;cursor:pointer;
+  font-family:inherit;transition:all .15s;border:none;width:100%;text-decoration:none}
+.bp{background:var(--primary);color:#fff}
+.bp:hover{background:var(--primary-dark)}
+.bp:disabled{opacity:.55;cursor:not-allowed}
+.msg{border-radius:8px;padding:11px 14px;font-size:.84rem;line-height:1.45;display:none}
+.msg.show{display:block}
+.msg.err{background:#fef2f2;border:1px solid #fecaca;color:#991b1b}
+.msg.ok{background:#f0fdf4;border:1px solid #bbf7d0;color:#166534}
+.link-sm{font-size:.8rem;color:var(--primary);text-decoration:none;text-align:center}
+.link-sm:hover{text-decoration:underline}
+@media(max-width:520px){
+  .hdr{padding:12px 14px}.wrap{padding:26px 12px 40px}
+  .card-top,form{padding-left:20px;padding-right:20px}
+}
+</style>
+</head>
+<body>
+
+<header class="hdr">
+  <img src="helix-logo-white.png" alt="Helix Benefit Solutions" class="hdr-logo">
+  <div class="hdr-divider"></div>
+  <div class="hdr-text">
+    <h1>Helix Benefit Solutions Onboarding</h1>
+    <span>Benefit Plan &amp; Rate Setup</span>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="card">
+    <div class="card-top">
+      <img src="helix-logo-color.png" alt="Helix Benefit Solutions">
+      <h2>Choose a new password</h2>
+      <p>You'll be signed in as soon as it's saved, and signed out everywhere else.</p>
+    </div>
+
+    <form id="reset-form" onsubmit="submitReset(event)">
+      <div class="msg" id="msg"></div>
+      <div class="f">
+        <label for="pw1">New Password <span class="req">*</span></label>
+        <input type="password" id="pw1" autocomplete="new-password" required minlength="8">
+        <div class="hint">At least 8 characters.</div>
+      </div>
+      <div class="f">
+        <label for="pw2">Confirm New Password <span class="req">*</span></label>
+        <input type="password" id="pw2" autocomplete="new-password" required minlength="8">
+      </div>
+      <button type="submit" class="btn bp" id="save-btn">Save Password</button>
+      <a href="/login.html" class="link-sm">← Back to sign in</a>
+    </form>
+  </div>
+</div>
+
+<script>
+// Read the token, then drop it from the address bar so it isn't left in history
+const token = new URLSearchParams(location.search).get('token') || '';
+history.replaceState(null, '', location.pathname);
+
+function showMsg(text, kind){
+  const el = document.getElementById('msg');
+  el.textContent = text;
+  el.className = 'msg show ' + (kind || 'err');
+}
+
+function linkDead(text){
+  const el = document.getElementById('msg');
+  el.className = 'msg show err';
+  el.textContent = text + ' ';
+  const a = document.createElement('a');
+  a.href = '/login.html?reset=1';
+  a.textContent = 'Send a new link';
+  a.style.cssText = 'color:inherit;font-weight:600';
+  el.appendChild(a);
+  document.getElementById('save-btn').disabled = true;
+}
+
+if(!token) linkDead('This page needs the link from your reset email.');
+
+async function submitReset(e){
+  e.preventDefault();
+  const pw1 = document.getElementById('pw1').value;
+  const pw2 = document.getElementById('pw2').value;
+  if(pw1.length < 8){ showMsg('Password must be at least 8 characters.'); return; }
+  if(pw1 !== pw2){ showMsg('The two passwords don\'t match.'); return; }
+  const btn = document.getElementById('save-btn');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try {
+    const r = await fetch('/api/auth/reset', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ token, password: pw1 })
+    });
+    const data = await r.json();
+    if(data.expired){ linkDead(data.error); btn.textContent = 'Save Password'; return; }
+    if(!r.ok) throw new Error(data.error || 'Could not save your password.');
+    showMsg('Password saved. Taking you to your onboarding…', 'ok');
+    location.href = '/benefit-plan-setup.html';
+  } catch(err){
+    showMsg(err.message);
+    btn.disabled = false; btn.textContent = 'Save Password';
+  }
+}
+</script>
+</body>
+</html>

@@ -355,6 +355,8 @@ try {
 } catch (e) { /* already exists */ }
 try { db.exec(`ALTER TABLE users ADD COLUMN verify_token_hash TEXT`); } catch (e) {}
 try { db.exec(`ALTER TABLE users ADD COLUMN verify_expires TEXT`); } catch (e) {}
+try { db.exec(`ALTER TABLE users ADD COLUMN reset_token_hash TEXT`); } catch (e) {}
+try { db.exec(`ALTER TABLE users ADD COLUMN reset_expires TEXT`); } catch (e) {}
 
 const stmtInsertSubmission = db.prepare(`
   INSERT INTO submissions
@@ -570,6 +572,36 @@ async function sendVerification(user) {
   });
 }
 
+// ---- Password reset ----
+const RESET_MINUTES = 60;
+const stmtSetResetToken = db.prepare(`UPDATE users SET reset_token_hash = ?, reset_expires = ? WHERE id = ?`);
+const stmtUserByResetHash = db.prepare(`SELECT * FROM users WHERE reset_token_hash = ?`);
+// Opening the reset link proves control of the mailbox, so it also confirms the email
+const stmtApplyReset = db.prepare(`
+  UPDATE users SET password_hash = ?, reset_token_hash = NULL, reset_expires = NULL,
+    email_verified_at = COALESCE(email_verified_at, ?), verify_token_hash = NULL, verify_expires = NULL
+  WHERE id = ?
+`);
+const stmtDeleteUserSessions = db.prepare(`DELETE FROM sessions WHERE user_id = ?`);
+
+async function sendPasswordReset(user) {
+  const token = crypto.randomBytes(32).toString('hex');
+  const expires = new Date(Date.now() + RESET_MINUTES * 60000).toISOString();
+  stmtSetResetToken.run(sha256(token), expires, user.id);
+  const link = `${APP_URL}/reset.html?token=${token}`;
+  if (!mailTransport) console.log(`  [reset] no SMTP — password reset link for ${user.email}: ${link}`);
+  return sendMail({
+    to: user.email,
+    subject: 'Reset your Helix onboarding password',
+    text: `Hi ${user.name || 'there'},\n\nSomeone asked to reset the password for your Helix onboarding account. To choose a new one, open:\n${link}\n\nThis link expires in ${RESET_MINUTES} minutes and can only be used once. If you didn't ask for this, ignore this email — your password won't change.`,
+    html: emailShell('Reset your password', `
+      <p style="margin:0 0 12px">Hi ${escapeHtml(user.name || 'there')},</p>
+      <p style="margin:0 0 20px">Someone asked to reset the password for your Helix onboarding account. Click below to choose a new one.</p>
+      <p style="margin:0 0 20px"><a href="${escapeHtml(link)}" style="background:#2557b7;color:#fff;text-decoration:none;padding:11px 22px;border-radius:6px;font-weight:600;display:inline-block">Choose a new password</a></p>
+      <p style="margin:0;font-size:12px;color:#6b7c93">This link expires in ${RESET_MINUTES} minutes and works once. If you didn't ask for this, ignore this email — your password won't change.</p>`)
+  });
+}
+
 // ---- Rate limiting (in memory; resets on restart, which is fine for one instance) ----
 const hits = new Map();
 function rateLimited(key, max, windowMs) {
@@ -677,7 +709,7 @@ function sendText(res, code, body, ctype='text/plain; charset=utf-8') {
 // database, submissions, source and git history, so serving "whatever exists"
 // would hand all of it to anyone who asked.
 const PUBLIC_FILES = new Set([
-  'index.html', 'login.html', 'benefit-plan-setup.html', 'admin.html',
+  'index.html', 'login.html', 'reset.html', 'benefit-plan-setup.html', 'admin.html',
   'helix-logo-white.png', 'helix-logo-color.png'
 ]);
 
@@ -860,6 +892,49 @@ const server = http.createServer(async (req, res) => {
       if (user && !user.email_verified_at) await sendVerification(user);
     }
     return sendJson(res, 200, { ok: true, message: 'If that account is waiting for confirmation, a new link is on its way.' });
+  }
+
+  // POST /api/auth/forgot  { email } — same answer whether or not the account exists
+  if (req.method === 'POST' && pathname === '/api/auth/forgot') {
+    let body; try { body = JSON.parse(await readBody(req)); } catch { return sendJson(res, 400, { error: 'Invalid JSON' }); }
+    const email = String(body.email || '').trim().toLowerCase();
+    if (isValidEmail(email)
+        && !rateLimited('forgot:' + email, 3, 3600000)
+        && !rateLimited('forgot-ip:' + clientIp(req), 20, 3600000)) {
+      const user = stmtUserByEmail.get(email);
+      if (user) {
+        // Not awaited: answering faster for unknown emails would reveal which ones exist
+        sendPasswordReset(user).catch(e => console.error('reset email error:', e.message));
+        console.log(`[auth] password reset requested for ${email}`);
+      }
+    }
+    return sendJson(res, 200, { ok: true, message: 'If an account exists for that email, a reset link is on its way.' });
+  }
+
+  // POST /api/auth/reset  { token, password }
+  if (req.method === 'POST' && pathname === '/api/auth/reset') {
+    let body; try { body = JSON.parse(await readBody(req)); } catch { return sendJson(res, 400, { error: 'Invalid JSON' }); }
+    if (rateLimited('reset-ip:' + clientIp(req), 30, 3600000)) {
+      return sendJson(res, 429, { error: 'Too many attempts. Please wait a while and try again.' });
+    }
+    const token = String(body.token || '');
+    const password = String(body.password || '');
+    const user = token ? stmtUserByResetHash.get(sha256(token)) : null;
+    if (!user || !user.reset_expires || new Date(user.reset_expires) < new Date()) {
+      return sendJson(res, 400, { error: 'This reset link is invalid or has expired. Request a new one from the sign-in page.', expired: true });
+    }
+    if (password.length < 8) return sendJson(res, 400, { error: 'Password must be at least 8 characters.' });
+    if (password.length > 200) return sendJson(res, 400, { error: 'Password is too long.' });
+
+    stmtApplyReset.run(hashPassword(password), new Date().toISOString(), user.id);
+    // Sign out everywhere — if the old password was compromised, so were its sessions
+    stmtDeleteUserSessions.run(user.id);
+    hits.delete('login-fail:' + user.email);
+    stmtTouchLogin.run(new Date().toISOString(), user.id);
+    const { token: session, expires } = createSession(user.id);
+    res.setHeader('Set-Cookie', sessionCookie(session, expires));
+    console.log(`[auth] password reset completed for ${user.email}`);
+    return sendJson(res, 200, { ok: true });
   }
 
   // POST /api/auth/logout

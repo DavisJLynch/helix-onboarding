@@ -52,6 +52,8 @@ form{padding:22px 32px 30px;display:flex;flex-direction:column;gap:14px}
 .msg.show{display:block}
 .msg.err{background:#fef2f2;border:1px solid #fecaca;color:#991b1b}
 .msg.ok{background:#f0fdf4;border:1px solid #bbf7d0;color:#166534}
+.link-sm{font-size:.78rem;color:var(--primary);text-decoration:none;align-self:flex-end;margin-top:2px}
+.link-sm:hover{text-decoration:underline}
 .foot{text-align:center;font-size:.78rem;color:var(--muted);padding:0 32px 26px;line-height:1.5}
 .note{background:var(--sec);border:1px solid var(--border);border-radius:8px;
   padding:10px 14px;font-size:.78rem;color:var(--muted);line-height:1.45;margin:0 32px 4px}
@@ -108,9 +110,21 @@ form{padding:22px 32px 30px;display:flex;flex-direction:column;gap:14px}
         <label for="password">Password <span class="req">*</span></label>
         <input type="password" id="password" autocomplete="current-password" required placeholder="••••••••">
         <div class="hint" id="pw-hint" style="display:none">Must be at least 8 characters.</div>
+        <a href="#" class="link-sm" id="forgot-link" onclick="showForgot(event)">Forgot password?</a>
       </div>
 
       <button type="submit" class="btn bp" id="submit-btn">Sign In</button>
+    </form>
+
+    <form id="forgot-form" onsubmit="submitForgot(event)" style="display:none">
+      <div class="msg" id="forgot-msg"></div>
+      <p class="hint" style="font-size:.84rem">Enter the email you signed up with and we'll send you a link to choose a new password.</p>
+      <div class="f">
+        <label for="forgot-email">Email Address <span class="req">*</span></label>
+        <input type="email" id="forgot-email" autocomplete="username" required placeholder="you@yourcompany.com">
+      </div>
+      <button type="submit" class="btn bp" id="forgot-btn">Send Reset Link</button>
+      <a href="#" class="link-sm" style="align-self:center" onclick="hideForgot(event)">← Back to sign in</a>
     </form>
 
     <div class="note" id="admin-note">
@@ -139,6 +153,10 @@ function setMode(m){
   document.getElementById('row-name').style.display = isReg ? '' : 'none';
   document.getElementById('row-company').style.display = isReg ? '' : 'none';
   document.getElementById('pw-hint').style.display = isReg ? '' : 'none';
+  document.getElementById('forgot-link').style.display = isReg ? 'none' : '';
+  document.getElementById('auth-form').style.display = '';
+  document.getElementById('forgot-form').style.display = 'none';
+  document.querySelector('.tabs').style.display = '';
   document.getElementById('submit-btn').textContent = isReg ? 'Create Account' : 'Sign In';
   document.getElementById('head-title').textContent = isReg ? 'Create your account' : 'Welcome back';
   document.getElementById('head-sub').textContent = isReg
@@ -221,6 +239,42 @@ async function resendLink(e){
   } catch(err){}
   showMsg('A new confirmation link is on its way to ' + pendingEmail + '. Check your spam folder if it doesn\'t arrive in a few minutes.', 'ok');
 }
+
+function showForgot(e){
+  if(e) e.preventDefault();
+  document.getElementById('auth-form').style.display = 'none';
+  document.querySelector('.tabs').style.display = 'none';
+  document.getElementById('forgot-form').style.display = '';
+  document.getElementById('forgot-email').value = document.getElementById('email').value;
+  document.getElementById('forgot-msg').className = 'msg';
+  document.getElementById('head-title').textContent = 'Reset your password';
+  document.getElementById('head-sub').textContent = 'We\'ll email you a link to choose a new one.';
+  document.getElementById('forgot-email').focus();
+}
+function hideForgot(e){
+  if(e) e.preventDefault();
+  setMode('login');
+}
+async function submitForgot(e){
+  e.preventDefault();
+  const btn = document.getElementById('forgot-btn');
+  const email = document.getElementById('forgot-email').value.trim();
+  const msg = document.getElementById('forgot-msg');
+  btn.disabled = true; btn.textContent = 'Sending…';
+  try {
+    await fetch('/api/auth/forgot', {
+      method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email })
+    });
+    msg.textContent = 'If an account exists for ' + email + ', a reset link is on its way. It expires in 60 minutes — check your spam folder if you don\'t see it.';
+    msg.className = 'msg show ok';
+  } catch(err){
+    msg.textContent = 'Could not reach the server. Please try again.';
+    msg.className = 'msg show err';
+  }
+  btn.disabled = false; btn.textContent = 'Send Reset Link';
+}
+
+if(params.get('reset') === '1') showForgot();
 
 if(params.get('verify') === 'invalid'){
   showMsg('That confirmation link is invalid or has expired. Sign in to have a new one sent.');
