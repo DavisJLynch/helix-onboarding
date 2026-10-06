@@ -527,8 +527,12 @@ function currentUser(req) {
   if (new Date(row.expires_at) < new Date()) { stmtDeleteSession.run(tokenHash); return null; }
   return { id: row.user_id, email: row.email, name: row.name, company: row.company, isAdmin: !!row.is_admin, token: tokenHash };
 }
+// isAdmin is only ever sent to admins, so client accounts never learn the role exists
 function publicUser(u) {
-  return u && { id: u.id, email: u.email, name: u.name, company: u.company, isAdmin: u.isAdmin };
+  if (!u) return u;
+  const out = { id: u.id, email: u.email, name: u.name, company: u.company };
+  if (u.isAdmin) { out.isAdmin = true; out.links = [{ href: '/admin', label: 'Dashboard' }]; }
+  return out;
 }
 function isValidEmail(e) {
   return typeof e === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.trim()) && e.length <= 254;
@@ -860,7 +864,7 @@ const server = http.createServer(async (req, res) => {
       const { token, expires } = createSession(user.id);
       res.setHeader('Set-Cookie', sessionCookie(token, expires));
       console.log(`[auth] login ${email}`);
-      return sendJson(res, 200, { ok: true, user: { id: user.id, email: user.email, name: user.name, company: user.company, isAdmin: !!user.is_admin } });
+      return sendJson(res, 200, { ok: true, user: publicUser({ id: user.id, email: user.email, name: user.name, company: user.company, isAdmin: !!user.is_admin }) });
     } catch (e) {
       console.error('login error:', e);
       return sendJson(res, 500, { error: 'Could not sign in.' });
@@ -1093,7 +1097,7 @@ const server = http.createServer(async (req, res) => {
 
   // GET /api/plans
   if (req.method === 'GET' && pathname === '/api/plans') {
-    if (!req.user.isAdmin) return sendJson(res, 403, { error: 'Helix staff only' });
+    if (!req.user.isAdmin) return sendJson(res, 404, { error: 'Not found' });
     try { return sendJson(res, 200, stmtListAllPlans.all()); }
     catch (e) { return sendJson(res, 500, { error: e.message }); }
   }
@@ -1134,24 +1138,24 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
+  // The dashboard is invisible to everyone but admins: same response as a
+  // page that doesn't exist, so clients can't tell there is one.
+  if (pathname === '/admin' || pathname === '/admin.html') {
+    const u = currentUser(req);
+    if (!u || !u.isAdmin) {
+      res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+      return res.end('Not found');
+    }
+    req.url = '/admin.html';
+    return serveStatic(req, res);
+  }
+
   // Pages that require a signed-in user — bounce to the login screen
-  const GATED_PAGES = ['/', '/index.html', '/benefit-plan-setup.html', '/admin', '/admin.html'];
+  const GATED_PAGES = ['/', '/index.html', '/benefit-plan-setup.html'];
   if (GATED_PAGES.includes(pathname) && !currentUser(req)) {
     const next = encodeURIComponent(pathname === '/' ? '/benefit-plan-setup.html' : pathname);
     res.writeHead(302, { Location: `/login.html?next=${next}` });
     return res.end();
-  }
-
-  // /admin → admin.html (Helix staff only)
-  if (pathname === '/admin' || pathname === '/admin.html') {
-    const u = currentUser(req);
-    if (!u.isAdmin) {
-      res.writeHead(403, { 'Content-Type': 'text/html; charset=utf-8' });
-      return res.end('<h2 style="font-family:Segoe UI,Arial,sans-serif;padding:40px">403 — Helix staff only.</h2>'
-        + '<p style="font-family:Segoe UI,Arial,sans-serif;padding:0 40px"><a href="/benefit-plan-setup.html">Back to the onboarding form</a></p>');
-    }
-    req.url = '/admin.html';
-    return serveStatic(req, res);
   }
 
   return serveStatic(req, res);

@@ -217,7 +217,6 @@ pre.json{background:#0d1b4b;color:#a5d8ff;padding:14px;border-radius:8px;font-si
   <div class="actions">
     <div class="hdr-user" id="hdr-user" style="display:none">
       <span id="hdr-user-name"></span>
-      <a href="/admin" id="hdr-admin-link" style="display:none">Dashboard</a>
     </div>
     <button class="btn bw" id="share-btn" onclick="openShare()" style="display:none" title="Let a coworker continue this onboarding">Share</button>
     <button class="btn bw" onclick="saveDraft()" title="Save your progress — you or a coworker can pick it up later">Save Progress</button>
@@ -1019,7 +1018,12 @@ async function initAccount(){
   currentUser = data.user;
   document.getElementById('hdr-user').style.display = '';
   document.getElementById('hdr-user-name').textContent = currentUser.name || currentUser.email;
-  if(currentUser.isAdmin) document.getElementById('hdr-admin-link').style.display = '';
+  (currentUser.links || []).forEach(l => {
+    const a = document.createElement('a');
+    a.href = l.href;
+    a.textContent = l.label;
+    document.getElementById('hdr-user').appendChild(a);
+  });
   // The account owns the confirmation email, so seed it and lock the address
   state.submitter.name = state.submitter.name || currentUser.name || '';
   state.submitter.email = currentUser.email;
