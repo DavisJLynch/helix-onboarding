@@ -632,7 +632,11 @@ function insertSubmission(record) {
   const employer = record.employer || {};
   const onboarding = record.onboarding || {};
   const cobraPlans = (record.cobra && Array.isArray(record.cobra.plans)) ? record.cobra.plans : [];
-  const cdhPlans   = (record.cdh   && Array.isArray(record.cdh.plans))   ? record.cdh.plans   : [];
+  // The form sends CDH plans keyed by type ({hsa:{...}}), one per selected type
+  const cdh = record.cdh || {};
+  const cdhPlans = Array.isArray(cdh.plans) ? cdh.plans
+    : (Array.isArray(cdh.selectedPlanTypes) ? cdh.selectedPlanTypes : [])
+        .map(t => Object.assign({ planType: t }, (cdh.plans && cdh.plans[t]) || {}));
   const payload = JSON.stringify(record);
 
   db.prepare('BEGIN').run();
@@ -672,6 +676,24 @@ function insertSubmission(record) {
 }
 
 // ============== One-time migration of legacy JSON files ==============
+// CDH plan counts were stored as 0 before the keyed-plans fix; recount from the payload
+(function backfillCdhCounts() {
+  let fixed = 0;
+  for (const row of db.prepare(`SELECT id, payload, cdh_plan_count FROM submissions WHERE onboarding_cdh = 1`).all()) {
+    let rec; try { rec = JSON.parse(row.payload); } catch { continue; }
+    const types = (rec.cdh && Array.isArray(rec.cdh.selectedPlanTypes)) ? rec.cdh.selectedPlanTypes : [];
+    if (!types.length || row.cdh_plan_count === types.length) continue;
+    db.prepare(`UPDATE submissions SET cdh_plan_count = ? WHERE id = ?`).run(types.length, row.id);
+    types.forEach((t, i) => db.prepare(`
+      INSERT OR IGNORE INTO plans (submission_id, kind, plan_index, benefit_type, carrier, plan_name, effective_start, group_number, payload)
+      VALUES (?, 'cdh', ?, ?, NULL, ?, NULL, NULL, ?)`)
+      .run(row.id, i, t, (rec.cdh.plans && rec.cdh.plans[t] && rec.cdh.plans[t].planName) || null,
+           JSON.stringify((rec.cdh.plans && rec.cdh.plans[t]) || {})));
+    fixed++;
+  }
+  if (fixed) console.log(`Recounted CDH plans on ${fixed} submission(s)`);
+})();
+
 (function migrateLegacyJson() {
   const existing = new Set(stmtListSubmissions.all().map(r => r.id));
   let migrated = 0;
